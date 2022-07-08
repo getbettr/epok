@@ -11,6 +11,7 @@ use kube::{Api, Client};
 use sha256::digest;
 use tracing::{debug, error, info};
 
+use anyhow::{anyhow, Context};
 use std::fmt::Debug;
 use std::str::FromStr;
 
@@ -157,9 +158,14 @@ async fn main() -> anyhow::Result<()> {
     let nodes: Api<Node> = Api::all(kubeclient.clone());
     let n = nodes.list(&ListParams::default()).await?.items;
 
-    // TODO - error handling + load balancing
+    // TODO - load balancing
+    if n.is_empty() {
+        let err = "could not find any active nodes; bailing...";
+        error!(err);
+        return Err(anyhow!(err));
+    }
     assert!(!n.is_empty());
-    let first_address = node_ip(&n[0]);
+    let first_address = node_ip(&n[0])?;
     info!(
         "forwarding from interface '{}' to ip '{}' of node '{}'",
         &opts.interface,
@@ -180,17 +186,23 @@ async fn main() -> anyhow::Result<()> {
                 error!("error while processing event: {:?}", e)
             }
         })
-        .collect::<Vec<()>>()
+        .collect::<Vec<_>>()
         .await;
 
     Ok(())
 }
 
-fn node_ip(n: &Node) -> String {
-    for add in n.status.clone().unwrap().addresses.unwrap().iter() {
+fn node_ip(n: &Node) -> anyhow::Result<String> {
+    for add in n
+        .status
+        .clone()
+        .context("node missing status")?
+        .addresses
+        .context("node missing addresses")?
+    {
         if add.type_ == "InternalIP" {
-            return add.address.to_owned();
+            return Ok(add.address);
         }
     }
-    "".to_owned()
+    Err(anyhow!("failed to extract node ip"))
 }

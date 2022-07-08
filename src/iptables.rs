@@ -1,11 +1,11 @@
-use cmd_lib::{run_cmd, run_fun};
+use cmd_lib::run_fun;
 use tracing::info;
 
-use crate::{ServiceExternalPort, SimpleService};
+use crate::{Executor, Service, ServiceExternalPort};
 
 pub trait IptablesBackend {
     fn upsert(&mut self, sep: &ServiceExternalPort) -> anyhow::Result<()>;
-    fn delete(&mut self, svc: &SimpleService) -> anyhow::Result<()>;
+    fn delete(&mut self, svc: &Service) -> anyhow::Result<()>;
 }
 
 #[derive(Default, Debug)]
@@ -25,12 +25,12 @@ impl IptablesBackend for MemoryBackend {
         self.state = self.state.to_owned()
             + &format!(
                 "\nsrc: {}, dest: {}, id: {}",
-                sep.external_port.src, sep.external_port.nodeport, full_hash
+                sep.external_port.host_port, sep.external_port.node_port, full_hash
             );
         Ok(())
     }
 
-    fn delete(&mut self, svc: &SimpleService) -> anyhow::Result<()> {
+    fn delete(&mut self, svc: &Service) -> anyhow::Result<()> {
         let svc_hash = svc.id();
 
         self.state = self
@@ -44,25 +44,56 @@ impl IptablesBackend for MemoryBackend {
         Ok(())
     }
 }
+#[derive(clap::Parser, Debug)]
+pub struct SshHost {
+    #[clap(short = 'H', value_parser, env = "K8S_OP_SSH_HOST")]
+    host: String,
+    #[clap(
+        short = 'p',
+        value_parser,
+        env = "K8S_OP_SSH_PORT",
+        default_value = "22"
+    )]
+    port: u16,
+    #[clap(short = 'k', value_parser, env = "K8S_OP_SSH_KEY")]
+    key_path: String,
+}
 
-#[derive(Default, Debug)]
+impl Executor {
+    fn run_fun(&self, cmd: &str) -> anyhow::Result<String> {
+        match self {
+            Executor::Local => Ok(run_fun!(sh -c "$cmd")?),
+            Executor::Ssh(ssh_host) => {
+                let (host, port, key) = (
+                    ssh_host.host.clone(),
+                    ssh_host.port,
+                    ssh_host.key_path.clone(),
+                );
+                Ok(run_fun!(ssh -p $port -i $key $host "$cmd")?)
+            }
+        }
+    }
+}
+
 pub struct RealBackend {
     iface: String,
     node_ip: String,
+    executor: Executor,
 }
 
 impl RealBackend {
-    pub fn new(iface: &str, node_ip: &str) -> Self {
+    pub fn new(iface: &str, node_ip: &str, executor: Executor) -> Self {
         Self {
             iface: iface.to_owned(),
             node_ip: node_ip.to_owned(),
+            executor,
         }
     }
 }
 
 impl IptablesBackend for RealBackend {
     fn upsert(&mut self, sep: &ServiceExternalPort) -> anyhow::Result<()> {
-        let state = run_fun!(sudo iptables-save -t nat)?;
+        let state = self.executor.run_fun("sudo iptables-save -t nat")?;
         let full_hash = sep.id();
 
         // already there
@@ -77,31 +108,33 @@ impl IptablesBackend for RealBackend {
         // insert a new rule
         let comment = format!(
             "src: {}, dest: {}, hash: {}",
-            sep.external_port.src, sep.external_port.nodeport, full_hash
-        );
-        let (iface, dport, n_ip, n_port) = (
-            &self.iface,
-            sep.external_port.src,
-            &self.node_ip,
-            sep.external_port.nodeport,
+            sep.external_port.host_port, sep.external_port.node_port, full_hash
         );
         info!("appending rules for {:?}", &sep);
-        run_cmd!(
-            sudo iptables -w -t nat -A PREROUTING -i $iface -p tcp -m tcp --dport $dport
-            -m comment --comment $comment -j DNAT --to-destination $n_ip:$n_port
-        )?;
+        let cmd = format!(
+            "sudo iptables -w -t nat -A PREROUTING -i {} -p tcp -m tcp --dport {} -m comment --comment '{}' -j DNAT --to-destination {}:{}",
+            &self.iface,
+            sep.external_port.host_port,
+            comment,
+            &self.node_ip,
+            sep.external_port.node_port
+        );
+        self.executor.run_fun(&cmd)?;
         Ok(())
     }
 
-    fn delete(&mut self, svc: &SimpleService) -> anyhow::Result<()> {
+    fn delete(&mut self, svc: &Service) -> anyhow::Result<()> {
         let svc_hash = svc.id();
-        if let Ok(rules) = run_fun!(sudo iptables-save -t nat | grep $svc_hash) {
+        if let Ok(rules) = self
+            .executor
+            .run_fun(&format!("sudo iptables-save -t nat | grep {}", svc_hash))
+        {
             info!("deleting rules for {:?}", &svc);
             for rule in rules.lines() {
                 let mut rule_parts = rule.split(' ').collect::<Vec<_>>();
                 rule_parts.remove(0);
                 let cmd = format!("sudo iptables -w -t nat -D {}", rule_parts.join(" "));
-                run_cmd!(sh -c "$cmd")?;
+                self.executor.run_fun(&cmd)?;
             }
         }
         Ok(())

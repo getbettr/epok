@@ -1,5 +1,5 @@
 [package]
-name = "k8s-op"
+name = "epok"
 description = "External port operator for Kubernetes"
 version = "0.1.0"
 edition = "2021"

@@ -46,16 +46,16 @@ impl IptablesBackend for MemoryBackend {
 }
 #[derive(clap::Parser, Debug)]
 pub struct SshHost {
-    #[clap(short = 'H', value_parser, env = "K8S_OP_SSH_HOST")]
+    #[clap(short = 'H', value_parser, env = "EPOK_SSH_HOST")]
     host: String,
     #[clap(
         short = 'p',
         value_parser,
-        env = "K8S_OP_SSH_PORT",
+        env = "EPOK_SSH_PORT",
         default_value = "22"
     )]
     port: u16,
-    #[clap(short = 'k', value_parser, env = "K8S_OP_SSH_KEY")]
+    #[clap(short = 'k', value_parser, env = "EPOK_SSH_KEY")]
     key_path: String,
 }
 

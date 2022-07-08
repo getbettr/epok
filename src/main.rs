@@ -16,7 +16,7 @@ use std::str::FromStr;
 
 use crate::iptables::{IptablesBackend, RealBackend};
 
-pub const APP_NAME: &str = "k8s-op";
+pub const APP_NAME: &str = "epok";
 pub const AUTHOR: &str = "Rareș Cosma - rares@getbetter.ro";
 pub const ANNOTATION: &str = "getbetter.ro/externalport";
 
@@ -28,7 +28,7 @@ mod built_info {
 #[clap(about = built_info::PKG_DESCRIPTION, author = AUTHOR)]
 pub struct Opts {
     /// Interface to forward packets from
-    #[clap(long, short = 'i', value_parser, env = "K8S_OP_INTERFACE")]
+    #[clap(long, short = 'i', value_parser, env = "EPOK_INTERFACE")]
     pub interface: String,
 
     #[clap(subcommand)]
@@ -140,7 +140,7 @@ pub fn delete<B: IptablesBackend>(s: &CoreService, backend: &mut B) -> anyhow::R
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    logz::initialize_logging("K8S_OP_LOG_LEVEL");
+    logz::initialize_logging("EPOK_LOG_LEVEL");
     logz::print_startup_string(
         built_info::PKG_DESCRIPTION,
         built_info::PKG_VERSION,

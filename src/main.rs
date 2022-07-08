@@ -3,17 +3,17 @@ mod logz;
 
 use clap::{Args, Parser};
 use futures::StreamExt;
-use k8s_openapi::api::core::v1::Node;
-use k8s_openapi::api::core::v1::Service as CoreService;
-use kube::api::ListParams;
-use kube::runtime::{watcher, watcher::Event};
-use kube::{Api, Client};
+use k8s_openapi::api::core::v1::{Node, Service as CoreService};
+use kube::{
+    api::ListParams,
+    runtime::{watcher, watcher::Event},
+    Api, Client,
+};
 use sha256::digest;
 use tracing::{debug, error, info};
 
 use anyhow::{anyhow, Context};
-use std::fmt::Debug;
-use std::str::FromStr;
+use std::{fmt::Debug, str::FromStr};
 
 use crate::backend::{Backend, IptablesBackend};
 

@@ -3,7 +3,7 @@ use tracing::info;
 
 use crate::{Executor, Service, ServiceExternalPort};
 
-pub trait IptablesBackend {
+pub trait Backend {
     fn upsert(&mut self, sep: &ServiceExternalPort) -> anyhow::Result<()>;
     fn delete(&mut self, svc: &Service) -> anyhow::Result<()>;
 }
@@ -13,7 +13,7 @@ pub struct MemoryBackend {
     state: String,
 }
 
-impl IptablesBackend for MemoryBackend {
+impl Backend for MemoryBackend {
     fn upsert(&mut self, sep: &ServiceExternalPort) -> anyhow::Result<()> {
         let full_hash = sep.id();
         if self.state.lines().any(|l| l.contains(&full_hash)) {
@@ -48,12 +48,7 @@ impl IptablesBackend for MemoryBackend {
 pub struct SshHost {
     #[clap(short = 'H', value_parser, env = "EPOK_SSH_HOST")]
     host: String,
-    #[clap(
-        short = 'p',
-        value_parser,
-        env = "EPOK_SSH_PORT",
-        default_value = "22"
-    )]
+    #[clap(short = 'p', value_parser, env = "EPOK_SSH_PORT", default_value = "22")]
     port: u16,
     #[clap(short = 'k', value_parser, env = "EPOK_SSH_KEY")]
     key_path: String,
@@ -75,13 +70,13 @@ impl Executor {
     }
 }
 
-pub struct RealBackend {
+pub struct IptablesBackend {
     iface: String,
     node_ip: String,
     executor: Executor,
 }
 
-impl RealBackend {
+impl IptablesBackend {
     pub fn new(iface: &str, node_ip: &str, executor: Executor) -> Self {
         Self {
             iface: iface.to_owned(),
@@ -91,7 +86,7 @@ impl RealBackend {
     }
 }
 
-impl IptablesBackend for RealBackend {
+impl Backend for IptablesBackend {
     fn upsert(&mut self, sep: &ServiceExternalPort) -> anyhow::Result<()> {
         let state = self.executor.run_fun("sudo iptables-save -t nat")?;
         let full_hash = sep.id();

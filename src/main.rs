@@ -1,4 +1,4 @@
-mod iptables;
+mod backend;
 mod logz;
 
 use clap::{Args, Parser};
@@ -14,7 +14,7 @@ use tracing::{debug, error, info};
 use std::fmt::Debug;
 use std::str::FromStr;
 
-use crate::iptables::{IptablesBackend, RealBackend};
+use crate::backend::{Backend, IptablesBackend};
 
 pub const APP_NAME: &str = "epok";
 pub const AUTHOR: &str = "Rareș Cosma - rares@getbetter.ro";
@@ -37,7 +37,7 @@ pub struct Opts {
 
 #[derive(clap::Parser, Debug)]
 #[clap(long_about = "En taro Adun")]
-pub enum Executor<Ssh: Args = iptables::SshHost> {
+pub enum Executor<Ssh: Args = backend::SshHost> {
     /// Run operator on bare metal host
     Local,
     /// Run operator inside cluster, SSH-ing back to the metal
@@ -102,7 +102,7 @@ impl ServiceExternalPort {
     }
 }
 
-pub fn apply<B: IptablesBackend>(s: &CoreService, backend: &mut B) -> anyhow::Result<()> {
+pub fn apply<B: Backend>(s: &CoreService, backend: &mut B) -> anyhow::Result<()> {
     let svc = Service::from(s);
 
     if let Some(anno) = s.metadata.clone().annotations {
@@ -131,7 +131,7 @@ pub fn apply<B: IptablesBackend>(s: &CoreService, backend: &mut B) -> anyhow::Re
     Ok(())
 }
 
-pub fn delete<B: IptablesBackend>(s: &CoreService, backend: &mut B) -> anyhow::Result<()> {
+pub fn delete<B: Backend>(s: &CoreService, backend: &mut B) -> anyhow::Result<()> {
     let svc = Service::from(s);
     info!("service deleted: {:?}", &svc);
     backend.delete(&svc)?;
@@ -168,7 +168,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let watcher = watcher(Api::<CoreService>::all(kubeclient), ListParams::default());
-    let mut backend = RealBackend::new(&opts.interface, &first_address, opts.executor);
+    let mut backend = IptablesBackend::new(&opts.interface, &first_address, opts.executor);
 
     watcher
         .map(|event| {

@@ -23,11 +23,11 @@ pub fn print_startup_string(
 ) {
     let git_information = match git_version {
         None => "".to_string(),
-        Some(git) => format!(" (Git information: {})", git),
+        Some(git) => format!(" (git: {})", git),
     };
     info!("Starting {}", pkg_description);
     info!(
-        "This is version {}{}, built for {} by {} at {}",
+        "This is version {}{}, built for {} by {} on {}",
         pkg_version, git_information, target, rustc_version, built_time
     )
 }

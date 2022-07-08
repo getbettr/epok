@@ -1,5 +1,6 @@
 [package]
 name = "k8s-op"
+description = "External port operator for Kubernetes"
 version = "0.1.0"
 edition = "2021"
 

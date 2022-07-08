@@ -1,0 +1,18 @@
+[package]
+name = "k8s-op"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.22.0" }
+anyhow = "1.0"
+clap = "3.2"
+cmd_lib = "1.0.10"
+futures = { version = "0.3", features = ["compat"] }
+sha256 = "1.0.3"
+tokio = { version = "1.19", features = ["full"] }
+tracing = "0.1"
+
+[build-dependencies]
+built = { version =  "0.5", features = ["chrono", "git2"] }
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.22.0" }

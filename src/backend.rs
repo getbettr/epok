@@ -102,7 +102,7 @@ impl Backend for IptablesBackend {
 
         // insert a new rule
         let comment = format!(
-            "src: {}, dest: {}, hash: {}",
+            "EpokRule{{ host_port: {}, node_port: {}, hash: {} }}",
             sep.external_port.host_port, sep.external_port.node_port, full_hash
         );
         info!("appending rules for {:?}", &sep);

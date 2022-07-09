@@ -216,7 +216,7 @@ async fn main() -> anyhow::Result<()> {
         backend: IptablesBackend::new(&first_address, opts.executor),
         interfaces: opts
             .interfaces
-            .split(",")
+            .split(',')
             .map(String::from)
             .collect::<Vec<_>>(),
     };

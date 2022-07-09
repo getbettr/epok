@@ -1,0 +1,2 @@
+[registries]
+getbetter = { index = "https://gitea.getbetter.ro/karelian/crates.git" }

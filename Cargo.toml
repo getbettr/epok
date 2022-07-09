@@ -18,3 +18,8 @@ tracing-subscriber = { version = "0.3.12", features = ["env-filter"] }
 
 [build-dependencies]
 built = { version =  "0.5", features = ["chrono", "git2"] }
+
+[profile.release]
+debug = 1
+incremental = true
+lto = "off"

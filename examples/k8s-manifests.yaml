@@ -1,0 +1,96 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: epok
+  namespace: epok
+  labels:
+    app.kubernetes.io/name: epok
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: epok
+  namespace: epok
+  labels:
+    app.kubernetes.io/name: epok
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: epok
+subjects:
+  - kind: ServiceAccount
+    name: epok
+    namespace: ingress-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: epok
+  namespace: epok
+  labels:
+    app.kubernetes.io/name: epok
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: epok
+  namespace: epok
+  labels:
+    app: epok
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: epok
+  template:
+    metadata:
+      labels:
+        app: epok
+        app.kubernetes.io/name: epok
+    spec:
+      securityContext:
+        runAsUser: 1000
+        fsGroup: 1000
+      serviceAccountName: epok
+      containers:
+        - name: operator
+          image: epok
+          imagePullPolicy: Always
+          args: ['epok', 'ssh']
+          env:
+            - name: EPOK_INTERFACE
+              value: "${EPOK_INTERFACE}"
+            - name: EPOK_SSH_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: ssh_host
+                  name: epok-ssh
+            - name: EPOK_SSH_PORT
+              valueFrom:
+                secretKeyRef:
+                  key: ssh_port
+                  name: epok-ssh
+            - name: EPOK_SSH_KEY
+              value: "/opt/secrets/id_rsa"
+          volumeMounts:
+            - mountPath: "/opt/secrets"
+              name: epok-secrets
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+      volumes:
+        - name: epok-secrets
+          secret:
+            defaultMode: 0400
+            secretName: epok-ssh

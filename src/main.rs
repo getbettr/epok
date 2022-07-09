@@ -68,14 +68,27 @@ impl FromStr for ExternalPort {
 
 #[derive(Debug)]
 pub struct Service {
+    iface: Option<String>,
     name: String,
     namespace: String,
 }
 
 impl Service {
     pub fn id(&self) -> String {
-        let hash = digest(format!("{}::{}", self.namespace, self.name));
+        let hash = digest(format!(
+            "{}::{}::{}",
+            self.iface.as_deref().unwrap_or(""),
+            self.namespace,
+            self.name
+        ));
         format!("pf-{}-{}-{}", self.namespace, self.name, hash)
+    }
+
+    pub fn with_iface(self, iface: &str) -> Self {
+        Self {
+            iface: Some(iface.to_owned()),
+            ..self
+        }
     }
 }
 
@@ -83,7 +96,11 @@ impl From<&CoreService> for Service {
     fn from(cs: &CoreService) -> Self {
         let metadata = cs.metadata.clone();
         let (name, namespace) = (metadata.name.unwrap(), metadata.namespace.unwrap());
-        Service { name, namespace }
+        Service {
+            iface: None,
+            name,
+            namespace,
+        }
     }
 }
 
@@ -103,40 +120,53 @@ impl ServiceExternalPort {
     }
 }
 
-pub fn apply<B: Backend>(s: &CoreService, backend: &mut B) -> anyhow::Result<()> {
-    let svc = Service::from(s);
-
-    if let Some(anno) = s.metadata.clone().annotations {
-        if anno.contains_key(ANNOTATION) {
-            info!("service changed: {:?}", &svc);
-            if let Ok(ep) = ExternalPort::from_str(&anno[ANNOTATION]) {
-                let sep = ServiceExternalPort {
-                    external_port: ep,
-                    service: svc,
-                };
-                backend.upsert(&sep)?;
-            } else {
-                error!(
-                    "invalid annotation format '{}' for {:?}",
-                    &anno[ANNOTATION], &svc
-                );
-            }
-        } else {
-            // extraneous delete, but better safe than sorry
-            debug!("missing annotation for: {:?} -> delete", &svc);
-            backend.delete(&svc)?;
-        }
-    } else {
-        debug!("ignoring {:?} {reason}", &svc, reason = "no annotation");
-    }
-    Ok(())
+struct Operator<B>
+where
+    B: Backend,
+{
+    backend: B,
+    interface: String,
 }
 
-pub fn delete<B: Backend>(s: &CoreService, backend: &mut B) -> anyhow::Result<()> {
-    let svc = Service::from(s);
-    info!("service deleted: {:?}", &svc);
-    backend.delete(&svc)?;
-    Ok(())
+impl<B> Operator<B>
+where
+    B: Backend,
+{
+    pub fn apply(&mut self, s: &CoreService) -> anyhow::Result<()> {
+        let svc = Service::from(s).with_iface(&self.interface);
+
+        if let Some(anno) = s.metadata.clone().annotations {
+            if anno.contains_key(ANNOTATION) {
+                info!("service changed: {:?}", &svc);
+                if let Ok(ep) = ExternalPort::from_str(&anno[ANNOTATION]) {
+                    let sep = ServiceExternalPort {
+                        external_port: ep,
+                        service: svc,
+                    };
+                    self.backend.upsert(&sep)?;
+                } else {
+                    error!(
+                        "invalid annotation format '{}' for {:?}",
+                        &anno[ANNOTATION], &svc
+                    );
+                }
+            } else {
+                // extraneous delete, but better safe than sorry
+                debug!("missing annotation for: {:?} -> delete", &svc);
+                self.backend.delete(&svc)?;
+            }
+        } else {
+            debug!("ignoring {:?} {reason}", &svc, reason = "no annotation");
+        }
+        Ok(())
+    }
+
+    pub fn delete(&mut self, s: &CoreService) -> anyhow::Result<()> {
+        let svc = Service::from(s).with_iface(&self.interface);
+        info!("service deleted: {:?}", &svc);
+        self.backend.delete(&svc)?;
+        Ok(())
+    }
 }
 
 #[tokio::main]
@@ -174,14 +204,18 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let watcher = watcher(Api::<CoreService>::all(kubeclient), ListParams::default());
-    let mut backend = IptablesBackend::new(&opts.interface, &first_address, opts.executor);
+
+    let mut operator = Operator {
+        backend: IptablesBackend::new(&opts.interface, &first_address, opts.executor),
+        interface: opts.interface,
+    };
 
     watcher
         .map(|event| {
             if let Err(e) = match event.unwrap() {
-                Event::Applied(obj) => apply(&obj, &mut backend),
-                Event::Restarted(obj) => obj.iter().try_for_each(|o| apply(o, &mut backend)),
-                Event::Deleted(obj) => delete(&obj, &mut backend),
+                Event::Applied(obj) => operator.apply(&obj),
+                Event::Restarted(obj) => obj.iter().try_for_each(|o| operator.apply(o)),
+                Event::Deleted(obj) => operator.delete(&obj),
             } {
                 error!("error while processing event: {:?}", e)
             }

@@ -63,6 +63,7 @@ spec:
         runAsUser: 1000
         fsGroup: 1000
       serviceAccountName: epok
+      terminationGracePeriodSeconds: 5
       containers:
         - name: operator
           image: "${EPOK_IMAGE}"

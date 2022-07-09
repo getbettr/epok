@@ -18,7 +18,5 @@ steps:
   - name: just-check
     <<: *rust
     commands:
-      - /orb/pre.sh
-      - just check
-      - /orb/post.sh
+      - /with-ci.sh just check
       - sleep 3600

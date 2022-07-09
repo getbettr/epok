@@ -18,10 +18,8 @@ steps:
   - name: just-check
     <<: *rust
     commands:
-      - /pre.sh
-      - /with-sccache.sh just check
+      - /with-ci.sh just check
   - name: just-udeps
     <<: *rust
     commands:
-      - /with-sccache.sh just udeps
-      - /post.sh
+      - /with-ci.sh just udeps

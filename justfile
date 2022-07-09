@@ -5,10 +5,14 @@
 _default:
   @just --list
 
-# Releases the kraken
+# Release the kraken
 release:
   cargo build --release
 
-# Runs clippy on the sources
+# Run clippy on the sources
 check:
   cargo clippy --locked -- -D warnings
+
+# Find unused dependencies
+udeps:
+  RUSTC_BOOTSTRAP=1 cargo udeps --all-targets --backend depinfo

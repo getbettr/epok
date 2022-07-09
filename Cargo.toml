@@ -1,8 +1,10 @@
 [package]
 name = "epok"
 description = "External port operator for Kubernetes"
+authors = ["Rareș <rares@getbetter.ro>"]
 version = "0.1.0"
 edition = "2021"
+publish = ["getbetter"]
 
 [dependencies]
 anyhow = "1.0"

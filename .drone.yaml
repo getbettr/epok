@@ -8,7 +8,7 @@ __orb: &rust
   pull: always
   environment:
     SCCACHE_BUCKET: sccache
-    SCCACHE_ENDPOINT: http://minio.storage-system.svc.k8s.local
+    SCCACHE_ENDPOINT: minio.storage-system.svc.k8s.local
     SCCACHE_REGION: us-west-1
     SCCACHE_S3_USE_SSL: "false"
     SCCACHE_CREDS:
@@ -19,4 +19,3 @@ steps:
     <<: *rust
     commands:
       - /with-ci.sh just check
-      - sleep 3600

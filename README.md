@@ -11,8 +11,8 @@ will handle the `iptables` rules to forward port `25` on your host machine to
 epok --interface <INTERFACE> <SUBCOMMAND>
 
 OPTIONS:
-    -i, --interface <INTERFACE>    Interface to forward packets from [env: EPOK_INTERFACE=]
-
+    -i, --interfaces <INTERFACES>    Comma-separated list of interfaces to forward packets from
+                                     [env: EPOK_INTERFACES=]
 SUBCOMMANDS:
     local    Run operator on bare metal host
     ssh      Run operator inside cluster, SSH-ing back to the metal
@@ -59,8 +59,8 @@ cat > epok.config <<EOF
 # Where should we push the docker image? Should be reachable from cluster.
 EPOK_IMAGE="my.docker.registry/epok:latest"
 
-# What interface should epok forward packets from?
-EPOK_INTERFACE="eth0"
+# What interfaces should epok forward packets from?
+EPOK_INTERFACES="eth0"
 
 # What user@host should epok use to contact the host machine?
 EPOK_SSH_HOST=user@10.0.0.1

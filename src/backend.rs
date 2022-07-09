@@ -71,15 +71,13 @@ impl Executor {
 }
 
 pub struct IptablesBackend {
-    iface: String,
     node_ip: String,
     executor: Executor,
 }
 
 impl IptablesBackend {
-    pub fn new(iface: &str, node_ip: &str, executor: Executor) -> Self {
+    pub fn new(node_ip: &str, executor: Executor) -> Self {
         Self {
-            iface: iface.to_owned(),
             node_ip: node_ip.to_owned(),
             executor,
         }
@@ -108,7 +106,7 @@ impl Backend for IptablesBackend {
         info!("appending rules for {:?}", &sep);
         let cmd = format!(
             "sudo iptables -w -t nat -A PREROUTING -i {} -p tcp -m tcp --dport {} -m comment --comment '{}' -j DNAT --to-destination {}:{}",
-            &self.iface,
+            sep.service.iface.as_ref().unwrap(),
             sep.external_port.host_port,
             comment,
             &self.node_ip,

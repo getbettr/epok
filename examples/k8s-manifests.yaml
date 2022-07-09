@@ -70,8 +70,8 @@ spec:
           imagePullPolicy: Always
           args: ['epok', 'ssh']
           env:
-            - name: EPOK_INTERFACE
-              value: "${EPOK_INTERFACE}"
+            - name: EPOK_INTERFACES
+              value: "${EPOK_INTERFACES}"
             - name: EPOK_SSH_HOST
               valueFrom:
                 secretKeyRef:

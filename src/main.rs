@@ -28,9 +28,9 @@ mod built_info {
 #[derive(Parser, Debug)]
 #[clap(about = built_info::PKG_DESCRIPTION, author = AUTHOR)]
 pub struct Opts {
-    /// Interface to forward packets from
-    #[clap(long, short = 'i', value_parser, env = "EPOK_INTERFACE")]
-    pub interface: String,
+    /// Comma-separated list of interfaces to forward packets from
+    #[clap(long, short = 'i', value_parser, env = "EPOK_INTERFACES")]
+    pub interfaces: String,
 
     #[clap(subcommand)]
     pub executor: Executor,
@@ -45,7 +45,7 @@ pub enum Executor<Ssh: Args = backend::SshHost> {
     Ssh(Ssh),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 struct ExternalPort {
     host_port: u16,
     node_port: u16,
@@ -84,10 +84,11 @@ impl Service {
         format!("pf-{}-{}-{}", self.namespace, self.name, hash)
     }
 
-    pub fn with_iface(self, iface: &str) -> Self {
+    pub fn with_iface(&self, iface: &str) -> Self {
         Self {
             iface: Some(iface.to_owned()),
-            ..self
+            name: self.name.to_owned(),
+            namespace: self.namespace.to_owned(),
         }
     }
 }
@@ -125,7 +126,7 @@ where
     B: Backend,
 {
     backend: B,
-    interface: String,
+    interfaces: Vec<String>,
 }
 
 impl<B> Operator<B>
@@ -133,17 +134,19 @@ where
     B: Backend,
 {
     pub fn apply(&mut self, s: &CoreService) -> anyhow::Result<()> {
-        let svc = Service::from(s).with_iface(&self.interface);
+        let svc = Service::from(s);
 
         if let Some(anno) = s.metadata.clone().annotations {
             if anno.contains_key(ANNOTATION) {
                 info!("service changed: {:?}", &svc);
                 if let Ok(ep) = ExternalPort::from_str(&anno[ANNOTATION]) {
-                    let sep = ServiceExternalPort {
-                        external_port: ep,
-                        service: svc,
-                    };
-                    self.backend.upsert(&sep)?;
+                    for interface in self.interfaces.iter() {
+                        let sep = ServiceExternalPort {
+                            external_port: ep,
+                            service: svc.with_iface(interface),
+                        };
+                        self.backend.upsert(&sep)?;
+                    }
                 } else {
                     error!(
                         "invalid annotation format '{}' for {:?}",
@@ -153,7 +156,9 @@ where
             } else {
                 // extraneous delete, but better safe than sorry
                 debug!("missing annotation for: {:?} -> delete", &svc);
-                self.backend.delete(&svc)?;
+                for interface in self.interfaces.iter() {
+                    self.backend.delete(&svc.with_iface(interface))?;
+                }
             }
         } else {
             debug!("ignoring {:?} {reason}", &svc, reason = "no annotation");
@@ -162,9 +167,11 @@ where
     }
 
     pub fn delete(&mut self, s: &CoreService) -> anyhow::Result<()> {
-        let svc = Service::from(s).with_iface(&self.interface);
+        let svc = Service::from(s);
         info!("service deleted: {:?}", &svc);
-        self.backend.delete(&svc)?;
+        for interface in self.interfaces.iter() {
+            self.backend.delete(&svc.with_iface(interface))?;
+        }
         Ok(())
     }
 }
@@ -197,8 +204,8 @@ async fn main() -> anyhow::Result<()> {
     assert!(!n.is_empty());
     let first_address = node_ip(&n[0])?;
     info!(
-        "forwarding from interface '{}' to ip '{}' of node '{}'",
-        &opts.interface,
+        "forwarding from interfaces '{}' to ip '{}' of node '{}'",
+        &opts.interfaces,
         &first_address,
         n[0].metadata.clone().name.unwrap(),
     );
@@ -206,8 +213,12 @@ async fn main() -> anyhow::Result<()> {
     let watcher = watcher(Api::<CoreService>::all(kubeclient), ListParams::default());
 
     let mut operator = Operator {
-        backend: IptablesBackend::new(&opts.interface, &first_address, opts.executor),
-        interface: opts.interface,
+        backend: IptablesBackend::new(&first_address, opts.executor),
+        interfaces: opts
+            .interfaces
+            .split(",")
+            .map(String::from)
+            .collect::<Vec<_>>(),
     };
 
     watcher

@@ -26,50 +26,74 @@ to the host machine and manipulate its `iptables` rules.
 It's best to use a separate account for this:
 
 ```shell
+export EPOK_USER=epok
+
 # create the user
-$ sudo useradd --create-home epok; sudo passwd -d epok
+sudo useradd --create-home $EPOK_USER; sudo passwd -d $EPOK_USER
 
 # create and authorize an SSH key
-$ sudo su epok -c ssh-keygen
-$ sudo mv /home/epok/.ssh/id_rsa.pub /home/epok/.ssh/authorized_keys 
+sudo su $EPOK_USER -c ssh-keygen
+sudo mv /home/$EPOK_USER/.ssh/id_rsa.pub /home/$EPOK_USER/.ssh/authorized_keys 
+
+# grab the private key and store it in a safe place
+sudo mv /home/$EPOK_USER/.ssh/id_rsa /path/to/private.key
 
 # restrict the epok user to iptables + iptables-save commands
-$ echo '%epok ALL=(ALL) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-save' | sudo EDITOR='tee' VISUAL='tee' visudo -f /etc/sudoers.d/epok
+echo "%${EPOK_USER} ALL=(ALL) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-save" | sudo EDITOR='tee' VISUAL='tee' visudo -f /etc/sudoers.d/$EPOK_USER
 ```
 
-You'll also need to copy the generated private key to a safe place.
-[`sealedsecrets`](https://github.com/bitnami-labs/sealed-secrets) is a good solution for storing it inside the cluster.
+NOTE: [`sealedsecrets`](https://github.com/bitnami-labs/sealed-secrets) is a good solution for storing the private key inside the cluster.
 
-To run epok:
+To test epok connectivity:
 
-```
-$ epok -i eth0 ssh -H epok@<host_ip> -k /path/to/private.key
+```shell
+epok -i eth0 ssh -H $EPOK_USER@host_machine -k /path/to/private.key
 ```
 
 ### Kubernetes deployment example
 
-Let's say your Kubernetes nodes can reach the host machine on the using the 
-`10.0.0.1` IP address; ssh is running on port `22222` and you saved the 
-ssh private key to `/path/to/private.key`. The interface you want to route
-from is `eth0`.
-
-First, we need a namespace:
+Set up some configuration values:
 
 ```shell
-$ kubectl create ns epok
+cat > epok.config <<EOF
+# Where should we push the docker image? Should be reachable from cluster.
+EPOK_IMAGE="my.docker.registry/epok:latest"
+
+# What interface should epok forward packets from?
+EPOK_INTERFACE="eth0"
+
+# What user@host should epok use to contact the host machine?
+EPOK_SSH_HOST=user@10.0.0.1
+
+# On what port is sshd running on the host?
+EPOK_SSH_PORT=22222
+
+# What key should we use to authenticate?
+EPOK_SSH_KEY=/path/to/private.key
+
+# What namespace shall we deploy to?
+EPOK_NS=epok
+
+export EPOK_IMAGE EPOK_INTERFACE EPOK_SSH_HOST EPOK_SSH_PORT EPOK_SSH_KEY EPOK_NS
+EOF
 ```
 
-Store the SSH connection data as a secret:
+Dockerize epok:
 
 ```shell
-$ kubectl create secret generic epok-ssh \
-  --from-literal=ssh_host=10.0.0.1 \
-  --from-literal=ssh_port=22222 \ 
-  --from-literal=id_rsa="$(cat /path/to/private.key)"
+source epok.config
+docker build -f docker/Dockerfile . -t $EPOK_IMAGE
+docker push $EPOK_IMAGE
 ```
 
-Deploy epok using the supplied [example manifests](examples/k8s-manifests.yaml):
+Create the namespace, secret and deploy using the supplied [example manifests](examples/k8s-manifests.yaml):
 
 ```shell
-$ EPOK_INTERFACE="eth0" envsubst < examples/k8s-manifests.yaml | kubectl apply -f -
+source epok.config
+kubectl create ns $EPOK_NS
+kubectl create secret -n $EPOK_NS generic epok-ssh \
+  --from-file=id_rsa=$EPOK_SSH_KEY \
+  --from-literal=ssh_host=$EPOK_SSH_HOST \
+  --from-literal=ssh_port=$EPOK_SSH_PORT
+envsubst < examples/k8s-manifests.yaml | kubectl apply -f -
 ```

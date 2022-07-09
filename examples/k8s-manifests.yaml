@@ -3,7 +3,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: epok
-  namespace: epok
+  namespace: ${EPOK_NS}
   labels:
     app.kubernetes.io/name: epok
 rules:
@@ -21,7 +21,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: epok
-  namespace: epok
+  namespace: ${EPOK_NS}
   labels:
     app.kubernetes.io/name: epok
 roleRef:
@@ -31,13 +31,13 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: epok
-    namespace: ingress-system
+    namespace: ${EPOK_NS}
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: epok
-  namespace: epok
+  namespace: ${EPOK_NS}
   labels:
     app.kubernetes.io/name: epok
 ---
@@ -45,7 +45,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: epok
-  namespace: epok
+  namespace: ${EPOK_NS}
   labels:
     app: epok
 spec:
@@ -65,7 +65,7 @@ spec:
       serviceAccountName: epok
       containers:
         - name: operator
-          image: epok
+          image: "${EPOK_IMAGE}"
           imagePullPolicy: Always
           args: ['epok', 'ssh']
           env:

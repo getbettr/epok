@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "gitea>karelian/renovate-config:rust"
+    "local>karelian/renovate-config:rust"
   ]
 }

@@ -23,3 +23,8 @@ steps:
     <<: *rust
     commands:
       - /with-ci.sh just udeps
+
+trigger:
+  branch:
+    exclude:
+      - renovate/*

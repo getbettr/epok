@@ -2,6 +2,8 @@
 kind: pipeline
 type: kubernetes
 name: cicd
+concurrency:
+  limit: 1
 
 __orb: &rust
   image: registry-np.storage-system.svc.k8s.local:5000/orbs/rust:blue

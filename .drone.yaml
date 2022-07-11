@@ -29,6 +29,13 @@ steps:
     <<: *rust
     commands:
       - /with-ci.sh just udeps
+  - name: docker-daemon
+    when:
+      branch:
+        - main
+    <<: *dind
+    privileged: true
+    detach: true
   - name: just-dockerize
     when:
       branch:
@@ -43,11 +50,6 @@ trigger:
   branch:
     exclude:
       - renovate/*
-
-services:
-  - name: docker-daemon
-    <<: *dind
-    privileged: true
 
 volumes:
   - name: dockersock

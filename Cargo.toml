@@ -16,7 +16,7 @@ kube = { version = "0.73.1", features = ["jsonpatch", "runtime", "derive"] }
 sha256 = "1.0.3"
 tokio = { version = "1.19", features = ["full"] }
 tracing = "0.1.35"
-tracing-subscriber = { version = "0.3.12", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.14", features = ["env-filter"] }
 
 [build-dependencies]
 built = { version =  "0.5", features = ["chrono", "git2"] }

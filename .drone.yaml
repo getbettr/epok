@@ -3,9 +3,19 @@ kind: pipeline
 type: kubernetes
 name: cicd
 
-__orb: &rust
+__dind_orb: &dind
+  image: registry-np.storage-system.svc.k8s.local:5000/orbs/dind:blue
+  pull: always
+  volumes:
+    - name: dockersock
+      path: /var/run
+
+__rust_orb: &rust
   image: registry-np.storage-system.svc.k8s.local:5000/orbs/rust:blue
   pull: always
+  volumes:
+    - name: dockersock
+      path: /var/run
   environment:
     SCCACHE_CREDS:
       from_secret: sccache-creds
@@ -19,8 +29,26 @@ steps:
     <<: *rust
     commands:
       - /with-ci.sh just udeps
+  - name: just-dockerize
+    when:
+      branch:
+        - main
+    <<: *rust
+    commands:
+      - while ! curl -s --unix-socket /var/run/docker.sock http://localhost/; do sleep 1; done
+      - just pull || (/with-ci.sh just release && just docker && just push)
+      - just push-latest
 
 trigger:
   branch:
     exclude:
       - renovate/*
+
+services:
+  - name: docker-daemon
+    <<: *dind
+    privileged: true
+
+volumes:
+  - name: dockersock
+    temp: {}

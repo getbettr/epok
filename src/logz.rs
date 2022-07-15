@@ -1,6 +1,10 @@
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 
+mod built_info {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
+
 pub fn initialize_logging(env: &str) {
     let filter = match EnvFilter::try_from_env(env) {
         Ok(env_filter) => env_filter,
@@ -13,21 +17,18 @@ pub fn initialize_logging(env: &str) {
     registry.init();
 }
 
-pub fn print_startup_string(
-    pkg_description: &str,
-    pkg_version: &str,
-    git_version: Option<&str>,
-    target: &str,
-    built_time: &str,
-    rustc_version: &str,
-) {
-    let git_information = match git_version {
+pub fn print_startup_string() {
+    let git_information = match built_info::GIT_VERSION {
         None => "".to_string(),
         Some(git) => format!(" (git: {})", git),
     };
-    info!("Starting {}", pkg_description);
+    info!("Starting {}", built_info::PKG_DESCRIPTION);
     info!(
         "This is version {}{}, built for {} by {} on {}",
-        pkg_version, git_information, target, rustc_version, built_time
+        built_info::PKG_VERSION,
+        git_information,
+        built_info::TARGET,
+        built_info::RUSTC_VERSION,
+        built_info::BUILT_TIME_UTC
     )
 }

@@ -1,7 +1,9 @@
+use crate::{
+    res::{Service, ServiceExternalPort},
+    Executor,
+};
 use cmd_lib::run_fun;
 use tracing::info;
-
-use crate::{Executor, Service, ServiceExternalPort};
 
 pub trait Backend {
     fn upsert(&mut self, sep: &ServiceExternalPort) -> anyhow::Result<()>;
@@ -43,15 +45,6 @@ impl Backend for MemoryBackend {
 
         Ok(())
     }
-}
-#[derive(clap::Parser, Debug)]
-pub struct SshHost {
-    #[clap(short = 'H', value_parser, env = "EPOK_SSH_HOST")]
-    host: String,
-    #[clap(short = 'p', value_parser, env = "EPOK_SSH_PORT", default_value = "22")]
-    port: u16,
-    #[clap(short = 'k', value_parser, env = "EPOK_SSH_KEY")]
-    key_path: String,
 }
 
 impl Executor {

@@ -231,7 +231,7 @@ async fn main() -> anyhow::Result<()> {
                 error!("error while processing event: {:?}", e)
             }
         })
-        .collect::<Vec<_>>()
+        .for_each(|_| futures::future::ready(()))
         .await;
 
     Ok(())

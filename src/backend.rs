@@ -82,6 +82,18 @@ impl IptablesBackend {
             executor,
         }
     }
+
+    fn make_rule<S: AsRef<str>>(&self, sep: &ServiceExternalPort, comment: S) -> String {
+        let cmd = format!(
+            "sudo iptables -w -t nat -A PREROUTING -i {} -p tcp -m tcp --dport {} -m comment --comment '{}' -j DNAT --to-destination {}:{}",
+            sep.service.iface.as_ref().unwrap(),
+            sep.external_port.host_port,
+            comment.as_ref(),
+            &self.node_ip,
+            sep.external_port.node_port
+        );
+        cmd
+    }
 }
 
 impl Backend for IptablesBackend {
@@ -104,14 +116,7 @@ impl Backend for IptablesBackend {
             sep.external_port.host_port, sep.external_port.node_port, full_hash
         );
         info!("appending rules for {:?}", &sep);
-        let cmd = format!(
-            "sudo iptables -w -t nat -A PREROUTING -i {} -p tcp -m tcp --dport {} -m comment --comment '{}' -j DNAT --to-destination {}:{}",
-            sep.service.iface.as_ref().unwrap(),
-            sep.external_port.host_port,
-            comment,
-            &self.node_ip,
-            sep.external_port.node_port
-        );
+        let cmd = self.make_rule(sep, comment);
         self.executor.run_fun(&cmd)?;
         Ok(())
     }

@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context};
-use k8s_openapi::api::core::v1::{Node, Service as CoreService};
-use kube::{api::ListParams, Api, Client};
+use k8s_openapi::api::core::v1::{Node as CoreNode, Service as CoreService};
+use kube::{api::ListParams, Api, Client, ResourceExt};
 use sha256::digest;
 use std::str::FromStr;
 use tracing::error;
@@ -81,31 +81,46 @@ impl ServiceExternalPort {
     }
 }
 
-pub async fn first_node_address(client: Client) -> anyhow::Result<String> {
-    let nodes: Api<Node> = Api::all(client);
-    let n = nodes.list(&ListParams::default()).await?.items;
-
-    // TODO - load balancing
-    if n.is_empty() {
-        let err = "could not find any active nodes; bailing...";
-        error!(err);
-        return Err(anyhow!(err));
-    }
-    assert!(!n.is_empty());
-    node_ip(&n[0])
+#[derive(Debug)]
+pub struct Node {
+    pub name: String,
+    pub addr: String,
 }
 
-fn node_ip(n: &Node) -> anyhow::Result<String> {
-    for add in n
-        .status
-        .clone()
-        .context("node missing status")?
-        .addresses
-        .context("node missing addresses")?
-    {
-        if add.type_ == "InternalIP" {
-            return Ok(add.address);
+impl Node {
+    pub async fn first(client: Client) -> Result<Self, anyhow::Error> {
+        let nodes: Api<CoreNode> = Api::all(client);
+        let n = nodes.list(&ListParams::default()).await?.items;
+
+        // TODO - load balancing
+        if n.is_empty() {
+            let err = "could not find any active nodes; bailing...";
+            error!(err);
+            return Err(anyhow!(err));
         }
+        assert!(!n.is_empty());
+        (&n[0]).try_into()
     }
-    Err(anyhow!("failed to extract node ip"))
+}
+
+impl TryFrom<&CoreNode> for Node {
+    type Error = anyhow::Error;
+
+    fn try_from(cn: &CoreNode) -> Result<Self, Self::Error> {
+        for add in cn
+            .status
+            .clone()
+            .context("node missing status")?
+            .addresses
+            .context("node missing addresses")?
+        {
+            if add.type_ == "InternalIP" {
+                return Ok(Self {
+                    name: cn.name_any(),
+                    addr: add.address,
+                });
+            }
+        }
+        Err(anyhow!("failed to extract node ip"))
+    }
 }

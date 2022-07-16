@@ -64,17 +64,17 @@ async fn main() -> anyhow::Result<()> {
     debug!("parsed options: {:?}", opts);
     let kubeclient = Client::try_default().await?;
 
-    let first_address = res::first_node_address(kubeclient.clone()).await?;
+    let first_node = res::Node::first(kubeclient.clone()).await?;
 
     info!(
-        "forwarding from interfaces '{}' to ip '{}'",
-        &opts.interfaces, &first_address,
+        "forwarding from interfaces '{}' to ip '{}' of node '{}'",
+        &opts.interfaces, &first_node.addr, &first_node.name
     );
 
     let watcher = watcher(Api::<CoreService>::all(kubeclient), ListParams::default());
 
     let mut operator = operator::Operator::new(
-        IptablesBackend::new(&first_address, opts.executor),
+        IptablesBackend::new(&first_node.addr, opts.executor),
         opts.interfaces
             .split(',')
             .map(String::from)

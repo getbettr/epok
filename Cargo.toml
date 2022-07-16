@@ -14,7 +14,7 @@ futures = { version = "0.3", features = ["compat"] }
 k8s-openapi = { version = "0.15.0", default-features = false, features = ["schemars", "v1_24"] }
 kube = { version = "0.74.0", features = ["jsonpatch", "runtime", "derive"] }
 sha256 = "1.0.3"
-tokio = { version = "1.19", features = ["full"] }
+tokio = { version = "1.20", features = ["full"] }
 tracing = "0.1.35"
 tracing-subscriber = { version = "0.3.14", features = ["env-filter"] }
 

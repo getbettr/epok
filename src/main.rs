@@ -2,7 +2,6 @@ use std::{collections::VecDeque, sync::Arc};
 
 use clap::Parser;
 use futures::StreamExt;
-use k8s_openapi::api::core::v1::{Node as CoreNode, Service as CoreService};
 use kube::{
     api::ListParams,
     runtime::{watcher, watcher::Event},

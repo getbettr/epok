@@ -8,7 +8,7 @@ will handle the `iptables` rules to forward port `25` on your host machine to
 ## Usage
 
 ```
-epok --interface <INTERFACE> <SUBCOMMAND>
+epok --interfaces <INTERFACES> <SUBCOMMAND>
 
 OPTIONS:
     -i, --interfaces <INTERFACES>    Comma-separated list of interfaces to forward packets from

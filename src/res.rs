@@ -71,23 +71,26 @@ impl FromStr for ExternalPort {
 pub struct Node {
     pub name: String,
     pub addr: String,
+    pub is_ready: bool,
 }
 
 impl TryFrom<&CoreNode> for Node {
     type Error = anyhow::Error;
 
     fn try_from(cn: &CoreNode) -> Result<Self, Self::Error> {
-        for add in cn
-            .status
-            .clone()
-            .context("node missing status")?
-            .addresses
-            .context("node missing addresses")?
-        {
+        let status = cn.status.clone().context("node missing status")?;
+
+        for add in status.addresses.context("node missing addresses")? {
             if add.type_ == "InternalIP" {
+                let is_ready = status
+                    .conditions
+                    .context("node missing conditions")?
+                    .iter()
+                    .any(|r| r.type_ == "Ready" && r.status == "True");
                 return Ok(Self {
                     name: cn.name_any(),
                     addr: add.address,
+                    is_ready,
                 });
             }
         }

@@ -1,7 +1,7 @@
 use std::{fmt::Debug, sync::Arc};
 use std::collections::VecDeque;
 
-use clap::{Args, Parser};
+use clap::Parser;
 use futures::StreamExt;
 use k8s_openapi::api::core::v1::{Node as CoreNode, Service as CoreService};
 use kube::{
@@ -18,36 +18,6 @@ use tokio::{
 use tracing::{debug, info, warn};
 
 use epok::*;
-
-#[derive(Parser, Debug)]
-#[clap(about = built_info::PKG_DESCRIPTION, author = AUTHOR)]
-pub struct Opts {
-    /// Comma-separated list of interfaces to forward packets from
-    #[clap(long, short = 'i', value_parser, env = "EPOK_INTERFACES")]
-    pub interfaces: String,
-
-    #[clap(subcommand)]
-    pub executor: Executor,
-}
-
-#[derive(clap::Parser, Debug)]
-#[clap(long_about = "En taro Adun")]
-pub enum Executor<Ssh: Args = SshHost> {
-    /// Run operator on bare metal host
-    Local,
-    /// Run operator inside cluster, SSH-ing back to the metal
-    Ssh(Ssh),
-}
-
-#[derive(clap::Parser, Debug)]
-pub struct SshHost {
-    #[clap(short = 'H', value_parser, env = "EPOK_SSH_HOST")]
-    host: String,
-    #[clap(short = 'p', value_parser, env = "EPOK_SSH_PORT", default_value = "22")]
-    port: u16,
-    #[clap(short = 'k', value_parser, env = "EPOK_SSH_KEY")]
-    key_path: String,
-}
 
 async fn proc_ev<T>(ev: Event<T>, tx: &Sender<Op>)
 where

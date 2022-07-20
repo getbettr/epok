@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+pub mod cli;
 pub mod logging;
 pub mod res;
 pub mod state;
@@ -8,6 +9,7 @@ pub mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
 
+pub use cli::*;
 pub use logging::*;
 pub use res::{Node, Service};
 pub use state::{Op, Ops, State};

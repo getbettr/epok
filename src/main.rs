@@ -39,6 +39,7 @@ async fn main() -> anyhow::Result<()> {
 
     let svc_watcher = watcher(Api::<CoreService>::all(kc.clone()), ListParams::default())
         .for_each(|event| async { proc_ev(event.unwrap(), &tx).await });
+
     let node_watcher = watcher(Api::<CoreNode>::all(kc.clone()), ListParams::default())
         .for_each(|event| async { proc_ev(event.unwrap(), &tx).await });
 
@@ -60,17 +61,21 @@ async fn main() -> anyhow::Result<()> {
             select! {
                 Some(op) = rx.recv() => {
                     info!("received op {:?}", &op);
+
                     ops.lock().await.push_back(op);
                     sleepers.push(sleep(DEBOUNCE_TIMEOUT));
                 }
                 _ = sleepers.pop().unwrap_or_else(|| sleep(Duration::MAX)) => {
-                    info!("debounce timeout; computing new state and calling operator...");
+                    info!("debounce: computing new state and calling operator.reconcile()");
+
                     let old_state = state.clone();
+
                     let mut ops = ops.lock().await;
                     while let Some(op) = ops.pop_front() {
                         op.apply(&mut state);
                     }
-                    if let Err(x) = operator.operate(&state, &old_state) {
+
+                    if let Err(x) = operator.reconcile(&state, &old_state) {
                         warn!("error while operating: {:?}", x)
                     }
                 }

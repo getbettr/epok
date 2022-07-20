@@ -4,8 +4,11 @@ use sha256::digest;
 
 use crate::*;
 
+type Result = anyhow::Result<()>;
+
 impl Executor {
-    fn run_fun(&self, cmd: &str) -> anyhow::Result<String> {
+    fn run_fun<S: AsRef<str>>(&self, cmd: S) -> anyhow::Result<String> {
+        let cmd = cmd.as_ref();
         match self {
             Executor::Local => Ok(run_fun!(sh -c "$cmd")?),
             Executor::Ssh(ssh_host) => {
@@ -20,8 +23,6 @@ impl Executor {
     }
 }
 
-type Interface = String;
-
 #[derive(Debug)]
 struct Rule<'a> {
     node: &'a Node,
@@ -33,7 +34,7 @@ struct Rule<'a> {
 impl<'a> Rule<'a> {
     fn iptables_args(&self) -> String {
         let input = format!(
-            "-i {interface} -p tcp --dport {host_port}",
+            "-i {interface} -p tcp --dport {host_port} -m state --state NEW",
             interface = self.interface,
             host_port = self.service.external_port.host_port,
         );
@@ -42,9 +43,11 @@ impl<'a> Rule<'a> {
             prob = self.prob
         );
         let comment = format!(
-            "-m comment --comment 'epok_hash: {}; epok_svc: {}'",
-            self.id(),
-            self.svc_id(),
+            "-m comment --comment '{}: {}; {}: {}'",
+            RULE_MARKER,
+            self.rule_id(),
+            SERVICE_MARKER,
+            self.service_id(),
         );
         let jump = format!(
             "-j DNAT --to-destination {node_addr}:{node_port}",
@@ -52,7 +55,7 @@ impl<'a> Rule<'a> {
             node_port = self.service.external_port.node_port,
         );
         format!(
-            "PREROUTING {input} -m state --state NEW {stat} {comment} {jump}",
+            "PREROUTING {input} {stat} {comment} {jump}",
             input = input,
             stat = stat,
             comment = comment,
@@ -60,23 +63,23 @@ impl<'a> Rule<'a> {
         )
     }
 
-    fn svc_id(&self) -> String {
+    fn rule_id(&self) -> String {
+        digest(format!(
+            "{}::{}::{}::{}",
+            self.node.addr,
+            self.service_id(),
+            self.interface,
+            self.prob
+        ))
+    }
+
+    fn service_id(&self) -> String {
         digest(format!(
             "{}::{}::{}::{}",
             self.service.namespace,
             self.service.name,
             self.service.external_port.host_port,
             self.service.external_port.node_port,
-        ))
-    }
-
-    fn id(&self) -> String {
-        digest(format!(
-            "{}::{}::{}::{}",
-            self.node.addr,
-            self.svc_id(),
-            self.interface,
-            self.prob
         ))
     }
 }
@@ -94,7 +97,7 @@ impl<'a> Operator<'a> {
         }
     }
 
-    pub fn operate(&mut self, new_state: &State, old_state: &State) -> Result<(), anyhow::Error> {
+    pub fn reconcile(&mut self, new_state: &State, old_state: &State) -> Result {
         let (added, removed) = new_state.diff(old_state);
         if added.is_empty() && removed.is_empty() {
             return Ok(());
@@ -105,7 +108,7 @@ impl<'a> Operator<'a> {
 
         self.rule_state = self
             .executor
-            .run_fun("sudo iptables-save -t nat | grep epok_hash")
+            .run_fun(format!("sudo iptables-save -t nat | grep {}", RULE_MARKER))
             .unwrap_or_else(|_| "".to_owned());
 
         // Case 1: same node set
@@ -115,40 +118,58 @@ impl<'a> Operator<'a> {
                 ..added
             }))?;
 
-            let removed_state = State {
+            let removed_service_ids = make_rules(&State {
                 nodes: new_state.nodes.clone(),
                 ..removed
-            };
-            let removed_rules = make_rules(&removed_state);
-            return self.cleanup(|&app| removed_rules.iter().any(|r| app.contains(&r.svc_id())));
+            })
+            .iter()
+            .map(|rule| rule.service_id())
+            .collect::<Vec<_>>();
+
+            return self.cleanup(|&rule| {
+                removed_service_ids
+                    .iter()
+                    .any(|service_id| rule.contains(service_id))
+            });
         }
 
         // Case 2: node added/removed => full cycle
         let new_rules = make_rules(new_state);
-        let new_hashes = new_rules.iter().map(|x| x.id()).collect::<Vec<_>>();
+
+        let new_rule_ids = new_rules
+            .iter()
+            .map(|rule| rule.rule_id())
+            .collect::<Vec<_>>();
+
         self.apply_rules(new_rules)?;
 
-        self.cleanup(|&rule| new_hashes.iter().all(|epok_hash| !rule.contains(epok_hash)))
+        self.cleanup(|&rule| {
+            new_rule_ids
+                .iter()
+                .all(|new_rule_id| !rule.contains(new_rule_id))
+        })
     }
 
-    fn apply_rules(&self, rules: Vec<Rule>) -> Result<(), anyhow::Error> {
+    fn apply_rules(&self, rules: Vec<Rule>) -> Result {
         for rule in rules {
-            if !self.rule_state.contains(&rule.id()) {
-                let cmd = format!("sudo iptables -w -t nat -A {}", rule.iptables_args());
-                self.executor.run_fun(&cmd)?;
+            if !self.rule_state.contains(&rule.rule_id()) {
+                self.executor.run_fun(format!(
+                    "sudo iptables -w -t nat -A {args}",
+                    args = rule.iptables_args(),
+                ))?;
             } else {
-                info!("skipping existing rule with hash: {}", rule.id());
+                info!("skipping existing rule with id: {}", rule.rule_id());
             }
         }
         Ok(())
     }
 
-    fn cleanup<P>(&self, pred: P) -> Result<(), anyhow::Error>
+    fn cleanup<P>(&self, pred: P) -> Result
     where
         P: FnMut(&&str) -> bool,
     {
         for appended in self.rule_state.lines().filter(pred) {
-            self.executor.run_fun(&append_to_delete(appended))?;
+            self.executor.run_fun(append_to_delete(appended))?;
         }
         Ok(())
     }

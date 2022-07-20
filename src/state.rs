@@ -3,15 +3,17 @@ use std::{collections::BTreeSet, ops::Sub};
 
 use crate::*;
 
+pub type Interface = String;
+
 #[derive(Clone, Default, Debug)]
 pub struct State {
-    pub interfaces: Vec<String>,
+    pub interfaces: Vec<Interface>,
     pub services: BTreeSet<Service>,
     pub nodes: BTreeSet<Node>,
 }
 
 impl State {
-    pub fn empty_with_interfaces(interfaces: Vec<String>) -> Self {
+    pub fn empty_with_interfaces(interfaces: Vec<Interface>) -> Self {
         Self {
             interfaces,
             ..Self::default()

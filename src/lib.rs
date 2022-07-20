@@ -1,4 +1,4 @@
-use std::time::Duration;
+use tokio::time::Duration;
 
 pub mod cli;
 pub mod logging;

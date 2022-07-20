@@ -99,11 +99,17 @@ impl From<Event<CoreService>> for Ops {
 impl From<Event<CoreNode>> for Ops {
     fn from(event: Event<CoreNode>) -> Self {
         let ops = match event {
-            Event::Applied(obj) => Node::try_from(&obj)
-                .map(|node| vec![Op::NodeRemove(node.name.to_owned()), Op::NodeAdd(node)]),
+            Event::Applied(obj) => Node::try_from(&obj).map(|node| {
+                let mut ret = vec![Op::NodeRemove(node.name.to_owned())];
+                if node.is_ready {
+                    ret.push(Op::NodeAdd(node));
+                }
+                ret
+            }),
             Event::Restarted(objs) => Ok(objs
                 .iter()
                 .filter_map(|o| Node::try_from(o).ok())
+                .filter(|n| n.is_ready)
                 .map(Op::NodeAdd)
                 .collect()),
             Event::Deleted(obj) => Node::try_from(&obj).map(|node| vec![Op::NodeRemove(node.name)]),

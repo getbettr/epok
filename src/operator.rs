@@ -39,7 +39,8 @@ impl<'a> Rule<'a> {
             prob = self.prob
         );
         let comment = format!(
-            "-m comment --comment '{}: {}; {}: {}'",
+            "-m comment --comment 'service: {}; {}: {}; {}: {}'",
+            self.service.fqn(),
             RULE_MARKER,
             self.rule_id(),
             SERVICE_MARKER,

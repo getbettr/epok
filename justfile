@@ -4,6 +4,7 @@
 REGISTRY := "registry-np.storage-system.svc.k8s.local:5000"
 PROJECT := "epok"
 HUB := "hub-cache.getbetter.ro"
+CACHE_BUST := `date +%Y-%m-%d:%H:%M:%S`
 
 _default:
   @just --list
@@ -24,7 +25,7 @@ udeps:
 _tag:
   #!/usr/bin/env bash
   git ls-files -s \
-    src build.rs rust-toolchain.toml \
+    docker src build.rs rust-toolchain.toml \
     Cargo Cargo.lock \
     | git hash-object --stdin \
     | cut -c-20
@@ -44,8 +45,9 @@ pull:
 # Build the docker image
 docker:
   #!/usr/bin/env bash
+  echo {{CACHE_BUST}}
   image=$(just _image)
-  docker build -t $image --build-arg HUB={{HUB}} -f docker/Dockerfile .
+  docker build -t $image --build-arg HUB={{HUB}} --build-arg CACHE_BUST={{CACHE_BUST}} -f docker/Dockerfile .
 
 # Push the docker image
 push:

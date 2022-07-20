@@ -12,11 +12,7 @@ impl Executor {
         match self {
             Executor::Local => Ok(run_fun!(sh -c "$cmd")?),
             Executor::Ssh(ssh_host) => {
-                let (host, port, key) = (
-                    ssh_host.host.clone(),
-                    ssh_host.port,
-                    ssh_host.key_path.clone(),
-                );
+                let (host, port, key) = (&ssh_host.host, ssh_host.port, &ssh_host.key_path);
                 Ok(run_fun!(ssh -p $port -i $key $host "$cmd")?)
             }
         }

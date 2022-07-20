@@ -31,16 +31,8 @@ impl Sub for &State {
     fn sub(self, rhs: Self) -> Self::Output {
         State {
             interfaces: self.interfaces.clone(),
-            services: self
-                .services
-                .difference(&rhs.services)
-                .map(|x| x.to_owned())
-                .collect(),
-            nodes: self
-                .nodes
-                .difference(&rhs.nodes)
-                .map(|x| x.to_owned())
-                .collect(),
+            services: &self.services - &rhs.services,
+            nodes: &self.nodes - &rhs.nodes,
         }
     }
 }

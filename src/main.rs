@@ -15,15 +15,6 @@ use tokio::{
 
 use epok::*;
 
-async fn proc_ev<T>(ev: Event<T>, tx: &Sender<Op>)
-where
-    Ops: From<Event<T>>,
-{
-    for op in Ops::from(ev).0 {
-        tx.send(op).await.unwrap();
-    }
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     initialize_logging("EPOK_LOG_LEVEL");
@@ -53,7 +44,19 @@ async fn main() -> anyhow::Result<()> {
 
     let mut operator = Operator::new(&opts.executor);
 
-    // there has to be a better way to debounce than this...
+    /*
+      There has to be a better way to debounce than this...
+
+      Each time the channel receives an Op a fresh sleeper is initialized
+      and thrown in the `sleepers` vector.
+
+      When the Op channel stalls the sleeper future will get selected
+      and so trigger the `debounce` branch.
+
+      When no sleepers remain we just give `select!` a really long-ass sleeping
+      future which virtually guarantees that the op channel gets selected next
+      and the cycle repeats.
+    */
     let deb = async {
         let mut sleepers = Vec::new();
         loop {
@@ -76,7 +79,7 @@ async fn main() -> anyhow::Result<()> {
                     }
 
                     if let Err(x) = operator.reconcile(&state, &old_state) {
-                        warn!("error while operating: {:?}", x)
+                        warn!("error during reconcile: {:?}", x)
                     }
                 }
             }
@@ -89,4 +92,13 @@ async fn main() -> anyhow::Result<()> {
         _ = deb => warn!("debouncer exited"),
     };
     Ok(())
+}
+
+async fn proc_ev<T>(ev: Event<T>, tx: &Sender<Op>)
+where
+    Ops: From<Event<T>>,
+{
+    for op in Ops::from(ev).0 {
+        tx.send(op).await.unwrap();
+    }
 }

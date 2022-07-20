@@ -29,10 +29,12 @@ struct Rule<'a> {
 
 impl<'a> Rule<'a> {
     fn iptables_args(&self) -> String {
+        let (host_port, node_port) = self.service.get_ports().expect("invalid service");
+
         let input = format!(
             "-i {interface} -p tcp --dport {host_port} -m state --state NEW",
             interface = self.interface,
-            host_port = self.service.external_port.host_port,
+            host_port = host_port,
         );
         let stat = format!(
             "-m statistic --mode random --probability {prob:.10}",
@@ -49,7 +51,7 @@ impl<'a> Rule<'a> {
         let jump = format!(
             "-j DNAT --to-destination {node_addr}:{node_port}",
             node_addr = self.node.addr,
-            node_port = self.service.external_port.node_port,
+            node_port = node_port,
         );
         format!(
             "PREROUTING {input} {stat} {comment} {jump}",
@@ -61,23 +63,21 @@ impl<'a> Rule<'a> {
     }
 
     fn rule_id(&self) -> String {
+        let (host_port, node_port) = self.service.get_ports().expect("invalid service");
+
         digest(format!(
-            "{}::{}::{}::{}",
-            self.node.addr,
+            "{}::{}::{}::{}::{}::{}",
             self.service_id(),
+            self.node.addr,
             self.interface,
-            self.prob
+            self.prob,
+            host_port,
+            node_port,
         ))
     }
 
     fn service_id(&self) -> String {
-        digest(format!(
-            "{}::{}::{}::{}",
-            self.service.namespace,
-            self.service.name,
-            self.service.external_port.host_port,
-            self.service.external_port.node_port,
-        ))
+        digest(self.service.fqn())
     }
 }
 

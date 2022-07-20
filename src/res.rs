@@ -17,6 +17,20 @@ impl Service {
     pub fn fqn(&self) -> String {
         format!("{}/{}", self.namespace, self.name)
     }
+
+    pub fn has_external_port(&self) -> bool {
+        !matches!(self.external_port, ExternalPort::Absent)
+    }
+
+    pub fn get_ports(&self) -> Result<(u16, u16), anyhow::Error> {
+        match self.external_port {
+            ExternalPort::Spec {
+                host_port,
+                node_port,
+            } => Ok((host_port, node_port)),
+            ExternalPort::Absent => Err(anyhow!("invalid service")),
+        }
+    }
 }
 
 impl TryFrom<&CoreService> for Service {
@@ -34,9 +48,9 @@ impl TryFrom<&CoreService> for Service {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ExternalPort {
-    pub host_port: u16,
-    pub node_port: u16,
+pub enum ExternalPort {
+    Spec { host_port: u16, node_port: u16 },
+    Absent,
 }
 
 impl TryFrom<&CoreService> for ExternalPort {
@@ -48,7 +62,7 @@ impl TryFrom<&CoreService> for ExternalPort {
                 return ExternalPort::from_str(&anno[ANNOTATION]);
             }
         }
-        Err(anyhow!("missing annotation"))
+        Ok(ExternalPort::Absent)
     }
 }
 
@@ -58,7 +72,7 @@ impl FromStr for ExternalPort {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts = s.split(':').collect::<Vec<_>>();
         match parts.len() {
-            2 => Ok(Self {
+            2 => Ok(Self::Spec {
                 host_port: parts[0].parse()?,
                 node_port: parts[1].parse()?,
             }),

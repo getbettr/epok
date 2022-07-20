@@ -81,11 +81,17 @@ impl Ops {
 impl From<Event<CoreService>> for Ops {
     fn from(event: Event<CoreService>) -> Self {
         let ops = match event {
-            Event::Applied(obj) => Service::try_from(&obj)
-                .map(|svc| vec![Op::ServiceRemove(svc.fqn()), Op::ServiceAdd(svc)]),
+            Event::Applied(obj) => Service::try_from(&obj).map(|svc| {
+                let mut ret = vec![Op::ServiceRemove(svc.fqn())];
+                if svc.has_external_port() {
+                    ret.push(Op::ServiceAdd(svc))
+                }
+                ret
+            }),
             Event::Restarted(objs) => Ok(objs
                 .iter()
                 .filter_map(|o| Service::try_from(o).ok())
+                .filter(Service::has_external_port)
                 .map(Op::ServiceAdd)
                 .collect()),
             Event::Deleted(obj) => {

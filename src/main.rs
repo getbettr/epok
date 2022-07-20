@@ -1,29 +1,23 @@
-mod backend;
-mod logz;
-mod operator;
-mod res;
+use std::{fmt::Debug, sync::Arc};
+use std::collections::VecDeque;
 
 use clap::{Args, Parser};
 use futures::StreamExt;
-use k8s_openapi::api::core::v1::Service as CoreService;
+use k8s_openapi::api::core::v1::{Node as CoreNode, Service as CoreService};
 use kube::{
     api::ListParams,
     runtime::{watcher, watcher::Event},
     Api, Client,
 };
-use tracing::{debug, error, info};
+use tokio::{
+    select,
+    sync::{mpsc, mpsc::Sender, Mutex},
+    time::{sleep, Duration},
+};
 
-use std::fmt::Debug;
+use tracing::{debug, info, warn};
 
-use crate::backend::IptablesBackend;
-
-pub const APP_NAME: &str = "epok";
-pub const AUTHOR: &str = "Rareș Cosma - rares@getbetter.ro";
-pub const ANNOTATION: &str = "getbetter.ro/externalport";
-
-mod built_info {
-    include!(concat!(env!("OUT_DIR"), "/built.rs"));
-}
+use epok::*;
 
 #[derive(Parser, Debug)]
 #[clap(about = built_info::PKG_DESCRIPTION, author = AUTHOR)]
@@ -55,44 +49,68 @@ pub struct SshHost {
     key_path: String,
 }
 
+async fn proc_ev<T>(ev: Event<T>, tx: &Sender<Op>)
+where
+    Ops: From<Event<T>>,
+{
+    for op in Ops::from(ev).0 {
+        tx.send(op).await.unwrap();
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    logz::initialize_logging("EPOK_LOG_LEVEL");
-    logz::print_startup_string();
+    initialize_logging("EPOK_LOG_LEVEL");
+    print_startup_string();
 
     let opts = Opts::parse();
     debug!("parsed options: {:?}", opts);
-    let kubeclient = Client::try_default().await?;
 
-    let first_node = res::Node::first(kubeclient.clone()).await?;
+    let kc = Client::try_default().await?;
 
-    info!(
-        "forwarding from interfaces '{}' to ip '{}' of node '{}'",
-        &opts.interfaces, &first_node.addr, &first_node.name
-    );
+    let (tx, mut rx) = mpsc::channel(1);
 
-    let watcher = watcher(Api::<CoreService>::all(kubeclient), ListParams::default());
+    let svc_watcher = watcher(Api::<CoreService>::all(kc.clone()), ListParams::default())
+        .for_each(|event| async { proc_ev(event.unwrap(), &tx).await });
+    let node_watcher = watcher(Api::<CoreNode>::all(kc.clone()), ListParams::default())
+        .for_each(|event| async { proc_ev(event.unwrap(), &tx).await });
 
-    let mut operator = operator::Operator::new(
-        IptablesBackend::new(&first_node.addr, opts.executor),
+    let ops = Arc::new(Mutex::new(VecDeque::new()));
+
+    let mut state = State::empty_with_interfaces(
         opts.interfaces
             .split(',')
             .map(String::from)
             .collect::<Vec<_>>(),
     );
 
-    watcher
-        .map(|event| {
-            if let Err(e) = match event.unwrap() {
-                Event::Applied(obj) => operator.apply(&obj),
-                Event::Restarted(obj) => obj.iter().try_for_each(|o| operator.apply(o)),
-                Event::Deleted(obj) => operator.delete(&obj),
-            } {
-                error!("error while processing event: {:?}", e)
+    // there has to be a better way to debounce than this...
+    let deb = async {
+        let mut sleepers = Vec::new();
+        loop {
+            select! {
+                Some(op) = rx.recv() => {
+                    info!("received op {:?}", &op);
+                    ops.lock().await.push_back(op);
+                    sleepers.push(sleep(DEBOUNCE_TIMEOUT));
+                }
+                _ = sleepers.pop().unwrap_or_else(|| sleep(Duration::MAX)) => {
+                    info!("debounce timeout; changing state...");
+                    let old_state = state.clone();
+                    let mut ops = ops.lock().await;
+                    while let Some(op) = ops.pop_front() {
+                        op.apply(&mut state);
+                    }
+                    info!("state diff: {:?}", state.diff(old_state));
+                }
             }
-        })
-        .for_each(|_| futures::future::ready(()))
-        .await;
+        }
+    };
 
+    select! {
+        _ = svc_watcher => warn!("service watcher exited"),
+        _ = node_watcher => warn!("node watcher exited"),
+        _ = deb => warn!("debouncer exited"),
+    };
     Ok(())
 }

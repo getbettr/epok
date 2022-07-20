@@ -1,14 +1,55 @@
-use anyhow::{anyhow, Context};
-use k8s_openapi::api::core::v1::{Node as CoreNode, Service as CoreService};
-use kube::{api::ListParams, Api, Client, ResourceExt};
-use sha256::digest;
 use std::str::FromStr;
-use tracing::error;
 
-#[derive(Debug, Copy, Clone)]
+use anyhow::{anyhow, Context};
+use k8s_openapi::api::core::v1::Node as CoreNode;
+use kube::ResourceExt;
+
+use crate::*;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Service {
+    pub name: String,
+    pub namespace: String,
+    pub external_port: ExternalPort,
+}
+
+impl Service {
+    pub fn fqn(&self) -> String {
+        format!("{}/{}", self.namespace, self.name)
+    }
+}
+
+impl TryFrom<&CoreService> for Service {
+    type Error = anyhow::Error;
+
+    fn try_from(cs: &CoreService) -> Result<Self, Self::Error> {
+        let metadata = cs.metadata.clone();
+        let (name, namespace) = (metadata.name.unwrap(), metadata.namespace.unwrap());
+        Ok(Service {
+            external_port: ExternalPort::try_from(cs)?,
+            name,
+            namespace,
+        })
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ExternalPort {
     pub host_port: u16,
     pub node_port: u16,
+}
+
+impl TryFrom<&CoreService> for ExternalPort {
+    type Error = anyhow::Error;
+
+    fn try_from(cs: &CoreService) -> Result<Self, Self::Error> {
+        if let Some(anno) = cs.metadata.clone().annotations {
+            if anno.contains_key(ANNOTATION) {
+                return ExternalPort::from_str(&anno[ANNOTATION]);
+            }
+        }
+        Err(anyhow!("missing annotation"))
+    }
 }
 
 impl FromStr for ExternalPort {
@@ -21,86 +62,15 @@ impl FromStr for ExternalPort {
                 host_port: parts[0].parse()?,
                 node_port: parts[1].parse()?,
             }),
-            _ => Err(anyhow::Error::msg("nope")),
+            _ => Err(anyhow!("failed to parse annotation")),
         }
     }
 }
 
-#[derive(Debug)]
-pub struct Service {
-    pub iface: Option<String>,
-    pub name: String,
-    pub namespace: String,
-}
-
-impl Service {
-    pub fn id(&self) -> String {
-        let hash = digest(format!(
-            "{}::{}::{}",
-            self.iface.as_deref().unwrap_or(""),
-            self.namespace,
-            self.name
-        ));
-        format!("pf-{}-{}-{}", self.namespace, self.name, hash)
-    }
-
-    pub fn with_iface(&self, iface: &str) -> Self {
-        Self {
-            iface: Some(iface.to_owned()),
-            name: self.name.to_owned(),
-            namespace: self.namespace.to_owned(),
-        }
-    }
-}
-
-impl From<&CoreService> for Service {
-    fn from(cs: &CoreService) -> Self {
-        let metadata = cs.metadata.clone();
-        let (name, namespace) = (metadata.name.unwrap(), metadata.namespace.unwrap());
-        Service {
-            iface: None,
-            name,
-            namespace,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct ServiceExternalPort {
-    pub external_port: ExternalPort,
-    pub service: Service,
-}
-
-impl ServiceExternalPort {
-    pub fn id(&self) -> String {
-        let hash = digest(format!(
-            "{}:{}",
-            self.external_port.host_port, self.external_port.node_port
-        ));
-        format!("{}-{}", self.service.id(), hash)
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Node {
     pub name: String,
     pub addr: String,
-}
-
-impl Node {
-    pub async fn first(client: Client) -> Result<Self, anyhow::Error> {
-        let nodes: Api<CoreNode> = Api::all(client);
-        let n = nodes.list(&ListParams::default()).await?.items;
-
-        // TODO - load balancing
-        if n.is_empty() {
-            let err = "could not find any active nodes; bailing...";
-            error!(err);
-            return Err(anyhow!(err));
-        }
-        assert!(!n.is_empty());
-        (&n[0]).try_into()
-    }
 }
 
 impl TryFrom<&CoreNode> for Node {

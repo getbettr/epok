@@ -1,9 +1,7 @@
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 
-mod built_info {
-    include!(concat!(env!("OUT_DIR"), "/built.rs"));
-}
+use crate::built_info;
 
 pub fn initialize_logging(env: &str) {
     let filter = match EnvFilter::try_from_env(env) {

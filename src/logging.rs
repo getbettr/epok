@@ -1,5 +1,6 @@
-use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
+
+pub use tracing::{debug, info, warn};
 
 use crate::built_info;
 

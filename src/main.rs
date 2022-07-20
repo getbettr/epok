@@ -15,8 +15,6 @@ use tokio::{
     time::{sleep, Duration},
 };
 
-use tracing::{debug, info, warn};
-
 use epok::*;
 
 async fn proc_ev<T>(ev: Event<T>, tx: &Sender<Op>)

@@ -63,6 +63,7 @@ async fn main() -> anyhow::Result<()> {
                     info!("received op {:?}", &op);
 
                     ops.lock().await.push_back(op);
+                    sleepers.clear();
                     sleepers.push(sleep(DEBOUNCE_TIMEOUT));
                 }
                 _ = sleepers.pop().unwrap_or_else(|| sleep(Duration::MAX)) => {

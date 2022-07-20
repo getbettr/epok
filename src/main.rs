@@ -133,13 +133,12 @@ impl<'a> App<'a> {
     }
 
     async fn reconcile(app_arc: Arc<Mutex<Self>>) {
-        info!("calling operator.reconcile()");
-
         let mut this = app_arc.lock().await;
 
         let old_state = this.get();
         let new_state = this.reduce();
 
+        info!("calling operator.reconcile()");
         if let Err(x) = this.operator.reconcile(&new_state, &old_state) {
             warn!("error during reconcile: {:?}", x)
         }

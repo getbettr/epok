@@ -1,5 +1,7 @@
+use std::cmp::Reverse;
+
 use cmd_lib::run_fun;
-use itertools::iproduct;
+use itertools::{iproduct, Itertools};
 use sha256::digest;
 
 use crate::*;
@@ -24,7 +26,7 @@ struct Rule<'a> {
     node: &'a Node,
     service: &'a Service,
     interface: &'a Interface,
-    prob: f64,
+    node_index: usize,
 }
 
 impl<'a> Rule<'a> {
@@ -36,10 +38,10 @@ impl<'a> Rule<'a> {
             interface = self.interface,
             host_port = host_port,
         );
-        let stat = format!(
-            "-m statistic --mode random --probability {prob:.10}",
-            prob = self.prob
-        );
+        let balance = match self.node_index {
+            i if i == 0 => "".to_owned(),
+            i => format!("-m statistic --mode nth --every {} --packet 0", i + 1),
+        };
         let comment = format!(
             "-m comment --comment 'service: {}; {}: {}; {}: {}'",
             self.service.fqn(),
@@ -54,9 +56,9 @@ impl<'a> Rule<'a> {
             node_port = node_port,
         );
         format!(
-            "PREROUTING {input} {stat} {comment} {jump}",
+            "PREROUTING {input} {balance} {comment} {jump}",
             input = input,
-            stat = stat,
+            balance = balance,
             comment = comment,
             jump = jump,
         )
@@ -69,8 +71,8 @@ impl<'a> Rule<'a> {
             "{}::{}::{}::{}::{}::{}",
             self.service_id(),
             self.node.addr,
+            self.node_index,
             self.interface,
-            self.prob,
             host_port,
             node_port,
         ))
@@ -173,15 +175,19 @@ impl<'a> Operator<'a> {
 }
 
 fn make_rules(state: &State) -> Vec<Rule> {
-    let prob: f64 = (1f64) / (state.nodes.len() as f64);
-    iproduct!(&state.nodes, &state.services, &state.interfaces)
-        .map(|(node, service, interface)| Rule {
-            node,
-            service,
-            interface,
-            prob,
-        })
-        .collect()
+    iproduct!(
+        state.nodes.iter().enumerate(),
+        &state.services,
+        &state.interfaces
+    )
+    .map(|((node_index, node), service, interface)| Rule {
+        node,
+        service,
+        interface,
+        node_index,
+    })
+    .sorted_unstable_by_key(|r| Reverse(r.node_index))
+    .collect()
 }
 
 fn append_to_delete(rule: &str) -> String {

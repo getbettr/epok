@@ -53,8 +53,6 @@ pub enum Op {
     ServiceRemove(String),
 }
 
-pub struct Ops(pub Vec<Op>);
-
 impl Op {
     pub fn apply(&self, state: &mut State) {
         match self {
@@ -69,6 +67,14 @@ impl Op {
                 state.services.retain(|s| &s.fqn() != svc_fqn);
             }
         }
+    }
+}
+
+pub struct Ops(pub Vec<Op>);
+
+impl Ops {
+    pub fn iter(self) -> impl Iterator<Item = Op> {
+        self.0.into_iter()
     }
 }
 

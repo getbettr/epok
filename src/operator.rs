@@ -26,6 +26,7 @@ struct Rule<'a> {
     node: &'a Node,
     service: &'a Service,
     interface: &'a Interface,
+    num_nodes: usize,
     node_index: usize,
 }
 
@@ -68,9 +69,10 @@ impl<'a> Rule<'a> {
         let (host_port, node_port) = self.service.get_ports().expect("invalid service");
 
         digest(format!(
-            "{}::{}::{}::{}::{}::{}",
+            "{}::{}::{}::{}::{}::{}::{}",
             self.service_id(),
             self.node.addr,
+            self.num_nodes,
             self.node_index,
             self.interface,
             host_port,
@@ -175,6 +177,7 @@ impl<'a> Operator<'a> {
 }
 
 fn make_rules(state: &State) -> Vec<Rule> {
+    let num_nodes = state.nodes.len();
     iproduct!(
         state.nodes.iter().enumerate(),
         &state.services,
@@ -184,6 +187,7 @@ fn make_rules(state: &State) -> Vec<Rule> {
         node,
         service,
         interface,
+        num_nodes,
         node_index,
     })
     .sorted_unstable_by_key(|r| Reverse(r.node_index))

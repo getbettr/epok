@@ -27,20 +27,19 @@ struct Rule<'a> {
     node: &'a Node,
     service: &'a Service,
     interface: &'a Interface,
-    num_nodes: usize,
+    prob: f64,
 }
 
 impl<'a> Rule<'a> {
     fn iptables_args(&self) -> String {
-        let prob: f64 = (1f64) / (self.num_nodes as f64);
         let input = format!(
             "-i {interface} -p tcp --dport {host_port}",
             interface = self.interface,
             host_port = self.service.external_port.host_port,
         );
         let stat = format!(
-            "-m statistic --mode random --probability {prob:.3}",
-            prob = prob
+            "-m statistic --mode random --probability {prob:.10}",
+            prob = self.prob
         );
         let comment = format!(
             "-m comment --comment 'epok_hash: {}; epok_svc: {}'",
@@ -77,7 +76,7 @@ impl<'a> Rule<'a> {
             self.node.addr,
             self.svc_id(),
             self.interface,
-            self.num_nodes
+            self.prob
         ))
     }
 }
@@ -129,7 +128,7 @@ impl<'a> Operator<'a> {
         let new_hashes = new_rules.iter().map(|x| x.id()).collect::<Vec<_>>();
         self.apply_rules(new_rules)?;
 
-        self.cleanup(|&app| new_hashes.iter().all(|r| !app.contains(r)))
+        self.cleanup(|&rule| new_hashes.iter().all(|epok_hash| !rule.contains(epok_hash)))
     }
 
     fn apply_rules(&self, rules: Vec<Rule>) -> Result<(), anyhow::Error> {
@@ -156,17 +155,15 @@ impl<'a> Operator<'a> {
 }
 
 fn make_rules(state: &State) -> Vec<Rule> {
-    let mut rules = Vec::new();
-    let num_nodes = state.nodes.len();
-    for (node, service, interface) in iproduct!(&state.nodes, &state.services, &state.interfaces) {
-        rules.push(Rule {
+    let prob: f64 = (1f64) / (state.nodes.len() as f64);
+    iproduct!(&state.nodes, &state.services, &state.interfaces)
+        .map(|(node, service, interface)| Rule {
             node,
             service,
             interface,
-            num_nodes,
+            prob,
         })
-    }
-    rules
+        .collect()
 }
 
 fn append_to_delete(rule: &str) -> String {

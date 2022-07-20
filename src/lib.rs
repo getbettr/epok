@@ -2,6 +2,7 @@ use tokio::time::Duration;
 
 pub mod cli;
 pub mod logging;
+pub mod operator;
 pub mod res;
 pub mod state;
 
@@ -11,6 +12,7 @@ pub mod built_info {
 
 pub use cli::*;
 pub use logging::*;
+pub use operator::*;
 pub use res::{Node, Service};
 pub use state::{Op, Ops, State};
 

@@ -1,5 +1,4 @@
-use std::{fmt::Debug, sync::Arc};
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::Arc};
 
 use clap::Parser;
 use futures::StreamExt;
@@ -52,6 +51,8 @@ async fn main() -> anyhow::Result<()> {
             .collect::<Vec<_>>(),
     );
 
+    let mut operator = Operator::new(&opts.executor);
+
     // there has to be a better way to debounce than this...
     let deb = async {
         let mut sleepers = Vec::new();
@@ -63,13 +64,15 @@ async fn main() -> anyhow::Result<()> {
                     sleepers.push(sleep(DEBOUNCE_TIMEOUT));
                 }
                 _ = sleepers.pop().unwrap_or_else(|| sleep(Duration::MAX)) => {
-                    info!("debounce timeout; changing state...");
+                    info!("debounce timeout; computing new state and calling operator...");
                     let old_state = state.clone();
                     let mut ops = ops.lock().await;
                     while let Some(op) = ops.pop_front() {
                         op.apply(&mut state);
                     }
-                    info!("state diff: {:?}", state.diff(old_state));
+                    if let Err(x) = operator.operate(&state, &old_state) {
+                        warn!("error while operating: {:?}", x)
+                    }
                 }
             }
         }

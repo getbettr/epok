@@ -5,9 +5,9 @@ use crate::*;
 
 #[derive(Clone, Default, Debug)]
 pub struct State {
-    interfaces: Vec<String>,
-    services: BTreeSet<Service>,
-    nodes: BTreeSet<Node>,
+    pub interfaces: Vec<String>,
+    pub services: BTreeSet<Service>,
+    pub nodes: BTreeSet<Node>,
 }
 
 impl State {
@@ -16,6 +16,10 @@ impl State {
             interfaces,
             ..Self::default()
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.services.is_empty() && self.nodes.is_empty()
     }
 }
 
@@ -40,9 +44,9 @@ impl Sub for &State {
 }
 
 impl State {
-    pub fn diff(&self, old_state: Self) -> (Self, Self) {
-        let added = self - &old_state;
-        let removed = &old_state - self;
+    pub fn diff(&self, old_state: &Self) -> (Self, Self) {
+        let added = self - old_state;
+        let removed = old_state - self;
         (added, removed)
     }
 }

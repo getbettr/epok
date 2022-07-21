@@ -93,7 +93,9 @@ impl TryFrom<&CoreNode> for Node {
 
     fn try_from(cn: &CoreNode) -> Result<Self, Self::Error> {
         let status = cn.status.clone().context("node missing status")?;
-        let anno = cn.metadata.clone().annotations.unwrap_or_default();
+        let meta = cn.metadata.clone();
+        let anno = meta.annotations.unwrap_or_default();
+        let labels = meta.labels.unwrap_or_default();
 
         for add in status.addresses.context("node missing addresses")? {
             if add.type_ == "InternalIP" {
@@ -102,7 +104,8 @@ impl TryFrom<&CoreNode> for Node {
                     .context("node missing conditions")?
                     .iter()
                     .any(|r| r.type_ == "Ready" && r.status == "True");
-                let is_excluded = anno.contains_key(NODE_EXCLUDE_ANNOTATION);
+                let is_excluded = anno.contains_key(NODE_EXCLUDE_ANNOTATION)
+                    || labels.contains_key(NODE_EXCLUDE_LABEL);
                 return Ok(Self {
                     name: cn.name_any(),
                     addr: add.address,

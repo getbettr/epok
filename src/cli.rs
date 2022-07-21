@@ -3,7 +3,7 @@ use clap::{Args, Parser};
 use crate::*;
 
 #[derive(Parser, Debug)]
-#[clap(about = built_info::PKG_DESCRIPTION, author = AUTHOR)]
+#[clap(about = "External port operator for Kubernetes", author = AUTHOR)]
 pub struct Opts {
     /// Comma-separated list of interfaces to forward packets from
     #[clap(long, short = 'i', value_parser, env = "EPOK_INTERFACES")]

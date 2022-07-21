@@ -9,10 +9,6 @@ pub mod operator;
 pub mod res;
 pub mod state;
 
-pub mod built_info {
-    include!(concat!(env!("OUT_DIR"), "/built.rs"));
-}
-
 lazy_static! {
     static ref ARG_MAX: String = {
         let res = run_fun!(getconf ARG_MAX).unwrap_or_else(|_| "8192".to_owned());

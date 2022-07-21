@@ -3,7 +3,7 @@ use clap::Parser;
 use epok::*;
 
 #[derive(Parser, Debug)]
-#[clap(about = built_info::PKG_DESCRIPTION, author = AUTHOR)]
+#[clap(about = "External port operator for Kubernetes", author = AUTHOR)]
 pub struct Opts {
     #[clap(flatten)]
     pub batch_opts: BatchOpts,

@@ -23,7 +23,6 @@ struct App {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     initialize_logging("EPOK_LOG_LEVEL");
-    print_startup_string();
 
     let opts = Opts::parse();
     debug!("parsed options: {:?}", opts);

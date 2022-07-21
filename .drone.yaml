@@ -25,6 +25,10 @@ steps:
     <<: *rust
     commands:
       - /with-ci.sh just check
+  - name: just-test
+    <<: *rust
+    commands:
+      - /with-ci.sh just test
   - name: just-udeps
     <<: *rust
     commands:

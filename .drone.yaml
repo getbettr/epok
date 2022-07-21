@@ -21,18 +21,10 @@ __rust_orb: &rust
       from_secret: sccache-creds
 
 steps:
-  - name: just-check
+  - name: just-ci
     <<: *rust
     commands:
-      - /with-ci.sh just check
-  - name: just-test
-    <<: *rust
-    commands:
-      - /with-ci.sh just test
-  - name: just-udeps
-    <<: *rust
-    commands:
-      - /with-ci.sh just udeps
+      - /with-ci.sh just ci
   - name: docker-daemon
     when:
       branch:

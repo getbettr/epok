@@ -9,6 +9,12 @@ CACHE_BUST := `date +%Y-%m-%d:%H:%M:%S`
 _default:
   @just --list
 
+# Run all CI steps
+ci:
+  just check
+  just test
+  just udeps
+
 # Release the kraken
 release:
   cargo build --release --locked

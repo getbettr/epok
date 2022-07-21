@@ -1,7 +1,7 @@
 ---
 kind: pipeline
 type: kubernetes
-name: cicd
+name: ufo
 
 tolerations:
   - key: node-role.kubernetes.io/ci

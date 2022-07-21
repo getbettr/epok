@@ -1,7 +1,7 @@
 ---
 kind: pipeline
 type: kubernetes
-name: cicd
+name: apollo
 
 __dind_orb: &dind
   image: registry-np.storage-system.svc.k8s.local:5000/orbs/dind:blue

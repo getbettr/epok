@@ -1,5 +1,8 @@
+use cmd_lib::run_fun;
+use lazy_static::lazy_static;
 use tokio::time::Duration;
 
+pub mod batch;
 pub mod cli;
 pub mod logging;
 pub mod operator;
@@ -10,6 +13,14 @@ pub mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
 
+lazy_static! {
+    static ref ARG_MAX: String = {
+        let res = run_fun!(getconf ARG_MAX).unwrap_or_else(|_| "8192".to_owned());
+        format!("{:.0}", (res.parse::<f32>().unwrap() * 0.8))
+    };
+}
+
+pub use batch::*;
 pub use cli::*;
 pub use logging::*;
 pub use operator::*;

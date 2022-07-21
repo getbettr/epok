@@ -308,6 +308,7 @@ dependencies = [
  "itertools",
  "k8s-openapi",
  "kube",
+ "lazy_static",
  "sha256",
  "tokio",
  "tracing",

@@ -44,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
     )
     .for_each(|event| async { App::process_event(event.unwrap(), &op_sender).await });
 
-    let operator_arc = Arc::new(Mutex::new(Operator::new(opts.executor)));
+    let operator_arc = Arc::new(Mutex::new(Operator::new(opts.executor, opts.batch_opts)));
 
     let app_arc = Arc::new(Mutex::new(App {
         op_queue: VecDeque::new(),

@@ -11,6 +11,7 @@ type Result = anyhow::Result<()>;
 impl Executor {
     fn run_fun<S: AsRef<str>>(&self, cmd: S) -> anyhow::Result<String> {
         let cmd = cmd.as_ref();
+        debug!("running command: {}", &cmd);
         match self {
             Executor::Local => Ok(run_fun!(sh -c "$cmd")?),
             Executor::Ssh(ssh_host) => {
@@ -88,13 +89,15 @@ impl<'a> Rule<'a> {
 pub struct Operator {
     executor: Executor,
     rule_state: String,
+    batch_opts: BatchOpts,
 }
 
 impl Operator {
-    pub fn new(executor: Executor) -> Self {
+    pub fn new(executor: Executor, batch_opts: BatchOpts) -> Self {
         Self {
             executor,
             rule_state: Default::default(),
+            batch_opts,
         }
     }
 
@@ -123,7 +126,6 @@ impl Operator {
                 nodes: new_state.nodes.clone(),
                 ..removed
             })
-            .iter()
             .map(|rule| rule.service_id())
             .collect::<Vec<_>>();
 
@@ -135,14 +137,14 @@ impl Operator {
         }
 
         // Case 2: node added/removed => full cycle
-        let new_rules = make_rules(new_state);
+        let new_rules = make_rules(new_state).collect::<Vec<_>>();
 
         let new_rule_ids = new_rules
             .iter()
             .map(|rule| rule.rule_id())
             .collect::<Vec<_>>();
 
-        self.apply_rules(new_rules)?;
+        self.apply_rules(new_rules.into_iter())?;
 
         self.cleanup(|&rule| {
             new_rule_ids
@@ -151,17 +153,12 @@ impl Operator {
         })
     }
 
-    fn apply_rules(&self, rules: Vec<Rule>) -> Result {
-        for rule in rules {
-            if !self.rule_state.contains(&rule.rule_id()) {
-                self.executor.run_fun(format!(
-                    "sudo iptables -w -t nat -A {args}",
-                    args = rule.iptables_args(),
-                ))?;
-            } else {
-                info!("skipping existing rule with id: {}", rule.rule_id());
-            }
-        }
+    fn apply_rules<'a>(&'a self, rules: impl Iterator<Item = Rule<'a>>) -> Result {
+        self.run_commands(
+            rules
+                .filter(|rule| !self.rule_state.contains(&rule.rule_id()))
+                .map(|rule| format!("sudo iptables -w -t nat -A {}", rule.iptables_args())),
+        )?;
         Ok(())
     }
 
@@ -169,14 +166,25 @@ impl Operator {
     where
         P: FnMut(&&str) -> bool,
     {
-        for appended in self.rule_state.lines().filter(pred) {
-            self.executor.run_fun(append_to_delete(appended))?;
+        self.run_commands(self.rule_state.lines().filter(pred).map(append_to_delete))
+    }
+
+    fn run_commands(&self, commands: impl Iterator<Item = String>) -> Result {
+        if self.batch_opts.batch_commands {
+            let batch = Batch::new(commands, self.batch_opts.batch_size, "; ".to_owned());
+            for command in batch {
+                self.executor.run_fun(command)?;
+            }
+        } else {
+            for command in commands {
+                self.executor.run_fun(command)?;
+            }
         }
         Ok(())
     }
 }
 
-fn make_rules(state: &State) -> Vec<Rule> {
+fn make_rules(state: &State) -> impl Iterator<Item = Rule> {
     let num_nodes = state.nodes.len();
     iproduct!(
         state.nodes.iter().enumerate(),
@@ -191,7 +199,6 @@ fn make_rules(state: &State) -> Vec<Rule> {
         node_index,
     })
     .sorted_unstable_by_key(|r| Reverse(r.node_index))
-    .collect()
 }
 
 fn append_to_delete(rule: &str) -> String {

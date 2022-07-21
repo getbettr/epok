@@ -47,7 +47,7 @@ async fn main() -> anyhow::Result<()> {
 
     let app_arc = Arc::new(Mutex::new(App {
         op_queue: VecDeque::new(),
-        state: State::empty_with_interfaces(
+        state: State::with_interfaces(
             opts.interfaces
                 .split(',')
                 .map(String::from)
@@ -124,7 +124,7 @@ impl App {
     where
         Ops: From<Event<T>>,
     {
-        for op in Ops::from(ev).iter() {
+        for op in Ops::from(ev) {
             tx.send(op).await.expect("send failed");
         }
     }

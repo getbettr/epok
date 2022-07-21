@@ -1,5 +1,5 @@
 use kube::runtime::watcher::Event;
-use std::{collections::BTreeSet, ops::Sub};
+use std::{collections::BTreeSet, ops::Sub, vec::IntoIter};
 
 use crate::*;
 
@@ -13,7 +13,7 @@ pub struct State {
 }
 
 impl State {
-    pub fn empty_with_interfaces(interfaces: Vec<Interface>) -> Self {
+    pub fn with_interfaces(interfaces: Vec<Interface>) -> Self {
         Self {
             interfaces,
             ..Self::default()
@@ -72,8 +72,11 @@ impl Op {
 
 pub struct Ops(pub Vec<Op>);
 
-impl Ops {
-    pub fn iter(self) -> impl Iterator<Item = Op> {
+impl IntoIterator for Ops {
+    type Item = Op;
+    type IntoIter = IntoIter<Op>;
+
+    fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
 }

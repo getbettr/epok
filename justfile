@@ -21,11 +21,11 @@ release:
 
 # Run clippy on the sources
 check:
-  cargo clippy --locked -- -D warnings
+  cargo clippy -- -D warnings
 
 # Run unit tests
 test:
-  cargo test --locked
+  cargo test
 
 # Find unused dependencies
 udeps:

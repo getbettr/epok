@@ -110,10 +110,7 @@ impl Operator {
         info!("added state: {:?}", &added);
         info!("removed state: {:?}", &removed);
 
-        self.rule_state = self
-            .executor
-            .run_fun(format!("sudo iptables-save -t nat | grep {}", RULE_MARKER))
-            .unwrap_or_else(|_| "".to_owned());
+        self.read_rule_state();
 
         // Case 1: same node set
         if new_state.nodes == old_state.nodes {
@@ -129,7 +126,7 @@ impl Operator {
             .map(|rule| rule.service_id())
             .collect::<Vec<_>>();
 
-            return self.cleanup(|&rule| {
+            return self.delete_rules(|&rule| {
                 removed_service_ids
                     .iter()
                     .any(|service_id| rule.contains(service_id))
@@ -146,11 +143,23 @@ impl Operator {
 
         self.apply_rules(new_rules.into_iter())?;
 
-        self.cleanup(|&rule| {
+        self.delete_rules(|&rule| {
             new_rule_ids
                 .iter()
                 .all(|new_rule_id| !rule.contains(new_rule_id))
         })
+    }
+
+    pub fn cleanup(&mut self) -> Result {
+        self.read_rule_state();
+        self.delete_rules(|_| true)
+    }
+
+    fn read_rule_state(&mut self) {
+        self.rule_state = self
+            .executor
+            .run_fun(format!("sudo iptables-save -t nat | grep {}", RULE_MARKER))
+            .unwrap_or_else(|_| "".to_owned());
     }
 
     fn apply_rules<'a>(&'a self, rules: impl Iterator<Item = Rule<'a>>) -> Result {
@@ -162,7 +171,7 @@ impl Operator {
         Ok(())
     }
 
-    fn cleanup<P>(&self, pred: P) -> Result
+    fn delete_rules<P>(&self, pred: P) -> Result
     where
         P: FnMut(&&str) -> bool,
     {

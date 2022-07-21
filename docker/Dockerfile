@@ -7,6 +7,7 @@ ARG CACHE_BUST=no
 RUN echo ${CACHE_BUST}
 
 COPY target/release/epok /usr/local/bin/
+COPY target/release/epok-clean /usr/local/bin/
 
 RUN useradd -u 1000 -U epok
 COPY ./docker/ssh-config /home/epok/.ssh/config

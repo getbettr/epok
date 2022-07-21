@@ -45,8 +45,9 @@ impl<'a> Rule<'a> {
             i => format!("-m statistic --mode nth --every {} --packet 0", i + 1),
         };
         let comment = format!(
-            "-m comment --comment 'service: {}; {}: {}; {}: {}'",
+            "-m comment --comment 'service: {}; node: {}; {}: {}; {}: {}'",
             self.service.fqn(),
+            self.node.name,
             RULE_MARKER,
             self.rule_id(),
             SERVICE_MARKER,

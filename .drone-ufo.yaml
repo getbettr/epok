@@ -3,6 +3,11 @@ kind: pipeline
 type: kubernetes
 name: cicd
 
+tolerations:
+  - key: node-role.kubernetes.io/ci
+    operator: Exists
+    effect: NoSchedule
+
 __dind_orb: &dind
   image: registry-np.storage-system.svc.k8s.local:5000/orbs/dind:blue
   pull: always
@@ -11,6 +16,7 @@ __dind_orb: &dind
       path: /var/run
 
 __rust_env: &rust_env
+  SCCACHE_ENDPOINT: "10.40.0.165:5099"
   SCCACHE_CREDS:
     from_secret: sccache-creds
 

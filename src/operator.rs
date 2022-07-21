@@ -85,13 +85,13 @@ impl<'a> Rule<'a> {
     }
 }
 
-pub struct Operator<'a> {
-    executor: &'a Executor,
+pub struct Operator {
+    executor: Executor,
     rule_state: String,
 }
 
-impl<'a> Operator<'a> {
-    pub fn new(executor: &'a Executor) -> Self {
+impl Operator {
+    pub fn new(executor: Executor) -> Self {
         Self {
             executor,
             rule_state: Default::default(),

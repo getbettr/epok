@@ -15,10 +15,9 @@ use tokio::{
 
 use epok::*;
 
-struct App<'a> {
+struct App {
     op_queue: VecDeque<Op>,
     state: State,
-    operator: &'a mut Operator<'a>,
 }
 
 #[tokio::main]
@@ -45,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
     )
     .for_each(|event| async { App::process_event(event.unwrap(), &op_sender).await });
 
-    let mut operator = Operator::new(&opts.executor);
+    let operator_arc = Arc::new(Mutex::new(Operator::new(opts.executor)));
 
     let app_arc = Arc::new(Mutex::new(App {
         op_queue: VecDeque::new(),
@@ -55,7 +54,6 @@ async fn main() -> anyhow::Result<()> {
                 .map(String::from)
                 .collect::<Vec<_>>(),
         ),
-        operator: &mut operator,
     }));
 
     /*
@@ -82,14 +80,14 @@ async fn main() -> anyhow::Result<()> {
                     app.queue(op);
 
                     if app.is_full() {
-                        App::reconcile(Arc::clone(&app_arc)).await;
+                        App::reconcile(Arc::clone(&app_arc), Arc::clone(&operator_arc)).await;
                     } else {
                         sleepers.clear();
                         sleepers.push(sleep(DEBOUNCE_TIMEOUT));
                     }
                 }
                 _ = sleepers.pop().unwrap_or_else(|| sleep(Duration::MAX)) => {
-                    App::reconcile(Arc::clone(&app_arc)).await;
+                    App::reconcile(Arc::clone(&app_arc), Arc::clone(&operator_arc)).await;
                 }
             }
         }
@@ -103,7 +101,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-impl<'a> App<'a> {
+impl App {
     fn queue(&mut self, op: Op) {
         self.op_queue.push_back(op);
     }
@@ -132,15 +130,18 @@ impl<'a> App<'a> {
         }
     }
 
-    async fn reconcile(app_arc: Arc<Mutex<Self>>) {
+    async fn reconcile(app_arc: Arc<Mutex<Self>>, operator_arc: Arc<Mutex<Operator>>) {
         let mut this = app_arc.lock().await;
 
         let old_state = this.get();
         let new_state = this.reduce();
 
-        info!("calling operator.reconcile()");
-        if let Err(x) = this.operator.reconcile(&new_state, &old_state) {
-            warn!("error during reconcile: {:?}", x)
-        }
+        tokio::task::spawn(async move {
+            let mut operator = operator_arc.lock().await;
+            info!("calling operator.reconcile()");
+            if let Err(x) = operator.reconcile(&new_state, &old_state) {
+                warn!("error during reconcile: {:?}", x)
+            }
+        });
     }
 }

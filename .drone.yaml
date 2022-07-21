@@ -3,6 +3,11 @@ kind: pipeline
 type: kubernetes
 name: cicd
 
+tolerations:
+  - key: node-role.kubernetes.io/ci
+    operator: Exists
+    effect: NoSchedule
+
 __dind_orb: &dind
   image: registry-np.storage-system.svc.k8s.local:5000/orbs/dind:blue
   pull: always

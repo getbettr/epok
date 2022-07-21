@@ -10,6 +10,15 @@ __dind_orb: &dind
     - name: dockersock
       path: /var/run
 
+__rust_env: &rust_env
+  SCCACHE_CREDS:
+    from_secret: sccache-creds
+
+_rust_dev_env: &rust_dev_env
+  <<: *rust_env
+  CARGO_INCREMENTAL: 1
+  CARGO_PROFILE_RELEASE_LTO: "false"
+
 __rust_orb: &rust
   image: registry-np.storage-system.svc.k8s.local:5000/orbs/rust:blue
   pull: always
@@ -17,14 +26,15 @@ __rust_orb: &rust
     - name: dockersock
       path: /var/run
   environment:
-    SCCACHE_CREDS:
-      from_secret: sccache-creds
+    <<: *rust_env
 
 steps:
   - name: just-ci
     <<: *rust
     commands:
       - /with-ci.sh just ci
+    environment:
+      <<: *rust_dev_env
   - name: docker-daemon
     when:
       branch:

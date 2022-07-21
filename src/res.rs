@@ -93,6 +93,7 @@ impl TryFrom<&CoreNode> for Node {
 
     fn try_from(cn: &CoreNode) -> Result<Self, Self::Error> {
         let status = cn.status.clone().context("node missing status")?;
+        let anno = cn.metadata.clone().annotations.unwrap_or_default();
 
         for add in status.addresses.context("node missing addresses")? {
             if add.type_ == "InternalIP" {
@@ -101,10 +102,11 @@ impl TryFrom<&CoreNode> for Node {
                     .context("node missing conditions")?
                     .iter()
                     .any(|r| r.type_ == "Ready" && r.status == "True");
+                let is_excluded = anno.contains_key(NODE_EXCLUDE_ANNOTATION);
                 return Ok(Self {
                     name: cn.name_any(),
                     addr: add.address,
-                    is_ready,
+                    is_ready: is_ready && !is_excluded,
                 });
             }
         }

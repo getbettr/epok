@@ -61,26 +61,26 @@ mod tests {
     use super::*;
     use quickcheck::*;
 
-    macro_rules! batch_tests {
-    ($($name:ident: $value:expr,)*) => {
-    $(
-        #[test]
-        fn $name() {
-            let (input, arg_max, expected) = $value;
-            let it = input.into_iter();
-            let batch = Batch::new(it, arg_max, &";");
-            let res = batch.into_iter().collect::<Vec<_>>();
-            assert_eq!(expected, res);
-        }
-    )*
-    }
-}
-
     #[test]
     fn test_default() {
         let it = vec!["a"].into_iter();
         let batch = Batch::new(it, 8000, &";");
         assert!(batch.arg_max > 0);
+    }
+
+    macro_rules! batch_tests {
+        ($($name:ident: $value:expr,)*) => {
+        $(
+            #[test]
+            fn $name() {
+                let (input, arg_max, expected) = $value;
+                let it = input.into_iter();
+                let batch = Batch::new(it, arg_max, &";");
+                let res = batch.into_iter().collect::<Vec<_>>();
+                assert_eq!(expected, res);
+            }
+        )*
+        }
     }
 
     batch_tests! {

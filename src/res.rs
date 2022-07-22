@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context};
-use k8s_openapi::api::core::v1::Node as CoreNode;
+use k8s_openapi::api::core::v1::NodeStatus;
 use kube::ResourceExt;
 
 use crate::*;
@@ -82,34 +82,40 @@ impl FromStr for ExternalPort {
 pub struct Node {
     pub name: String,
     pub addr: String,
-    pub is_ready: bool,
+    pub is_active: bool,
 }
 
 impl TryFrom<&CoreNode> for Node {
     type Error = anyhow::Error;
 
     fn try_from(cn: &CoreNode) -> Result<Self, Self::Error> {
-        let status = cn.status.clone().context("node missing status")?;
-        let meta = cn.metadata.clone();
-        let anno = meta.annotations.unwrap_or_default();
-        let labels = meta.labels.unwrap_or_default();
+        let status = cn.status.clone().unwrap_or_default();
+        let addr = node_ip(status.clone())?;
+        let is_active = node_ready(status)
+            && !cn.annotations().contains_key(NODE_EXCLUDE_ANNOTATION)
+            && !cn.labels().contains_key(NODE_EXCLUDE_LABEL);
 
-        for add in status.addresses.context("node missing addresses")? {
-            if add.type_ == "InternalIP" {
-                let is_ready = status
-                    .conditions
-                    .context("node missing conditions")?
-                    .iter()
-                    .any(|r| r.type_ == "Ready" && r.status == "True");
-                let is_excluded = anno.contains_key(NODE_EXCLUDE_ANNOTATION)
-                    || labels.contains_key(NODE_EXCLUDE_LABEL);
-                return Ok(Self {
-                    name: cn.name_any(),
-                    addr: add.address,
-                    is_ready: is_ready && !is_excluded,
-                });
-            }
-        }
-        Err(anyhow!("failed to extract node ip"))
+        Ok(Self {
+            name: cn.name_any(),
+            addr,
+            is_active,
+        })
     }
+}
+
+fn node_ip(status: NodeStatus) -> anyhow::Result<String> {
+    for add in status.addresses.context("node missing addresses")? {
+        if add.type_ == "InternalIP" {
+            return Ok(add.address);
+        }
+    }
+    Err(anyhow!("failed to extract node ip"))
+}
+
+fn node_ready(status: NodeStatus) -> bool {
+    status
+        .conditions
+        .unwrap_or_default()
+        .iter()
+        .any(|c| c.type_ == "Ready" && c.status == "True")
 }

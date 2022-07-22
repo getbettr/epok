@@ -110,7 +110,7 @@ impl From<Event<CoreNode>> for Ops {
         let ops = match event {
             Event::Applied(obj) => Node::try_from(&obj).map(|node| {
                 let mut ret = vec![Op::NodeRemove(node.name.to_owned())];
-                if node.is_ready {
+                if node.is_active {
                     ret.push(Op::NodeAdd(node));
                 }
                 ret
@@ -118,7 +118,7 @@ impl From<Event<CoreNode>> for Ops {
             Event::Restarted(objs) => Ok(objs
                 .iter()
                 .filter_map(|o| Node::try_from(o).ok())
-                .filter(|n| n.is_ready)
+                .filter(|n| n.is_active)
                 .map(Op::NodeAdd)
                 .collect()),
             Event::Deleted(obj) => Node::try_from(&obj).map(|node| vec![Op::NodeRemove(node.name)]),

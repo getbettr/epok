@@ -181,7 +181,8 @@ impl Operator {
 
     fn run_commands(&self, commands: impl Iterator<Item = String>) -> Result {
         if self.batch_opts.batch_commands {
-            let batch = Batch::new(commands, self.batch_opts.batch_size, "; ".to_owned());
+            let sep = "; ".to_owned();
+            let batch = Batch::new(commands, self.batch_opts.batch_size, &sep);
             for command in batch {
                 self.executor.run_fun(command)?;
             }

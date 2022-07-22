@@ -24,6 +24,9 @@ tokio = { version = "1", features = ["full"] }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
+[dev-dependencies]
+quickcheck = { version = "1", default-features = false }
+
 [profile.release]
 debug = 1
 incremental = true

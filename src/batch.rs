@@ -1,16 +1,17 @@
-pub struct Batch<I: Iterator> {
+pub struct Batch<'a, I: Iterator> {
     inner: I,
-    sep: I::Item,
+    sep: &'a I::Item,
     arg_max: usize,
     _first: Option<String>,
 }
 
-impl<I> Batch<I>
+impl<'a, I> Batch<'a, I>
 where
     I: Iterator,
     I::Item: AsRef<str>,
 {
-    pub fn new(inner: I, arg_max: usize, sep: I::Item) -> Self {
+    pub fn new(inner: I, arg_max: usize, sep: &'a I::Item) -> Self {
+        debug_assert!(arg_max > 0);
         Self {
             inner,
             sep,
@@ -20,7 +21,7 @@ where
     }
 }
 
-impl<I> Iterator for Batch<I>
+impl<'a, I> Iterator for Batch<'a, I>
 where
     I: Iterator,
     I::Item: AsRef<str> + Default,
@@ -58,6 +59,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use quickcheck::*;
 
     macro_rules! batch_tests {
     ($($name:ident: $value:expr,)*) => {
@@ -77,7 +79,7 @@ mod tests {
     #[test]
     fn test_default() {
         let it = vec!["a"].into_iter();
-        let batch = Batch::new(it, 8000, ";");
+        let batch = Batch::new(it, 8000, &";");
         assert!(batch.arg_max > 0);
     }
 
@@ -95,5 +97,20 @@ mod tests {
             3,
             vec!["a;b", "c;d", "e;f", "g;h", "i"]
         ),
+    }
+
+    quickcheck! {
+        fn concat_invariant(input: Vec<String>, joiner: String, arg_max: usize) -> TestResult {
+            if arg_max < 1 {
+                return TestResult::discard();
+            }
+
+            let expected = input.join(&joiner);
+            let res = Batch::new(input.into_iter(), arg_max, &joiner)
+                .collect::<Vec<_>>()
+                .join(&joiner);
+
+            TestResult::from_bool(expected == res)
+        }
     }
 }

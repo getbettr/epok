@@ -37,12 +37,10 @@ impl TryFrom<&CoreService> for Service {
     type Error = anyhow::Error;
 
     fn try_from(cs: &CoreService) -> Result<Self, Self::Error> {
-        let metadata = cs.metadata.clone();
-        let (name, namespace) = (metadata.name.unwrap(), metadata.namespace.unwrap());
         Ok(Service {
             external_port: ExternalPort::try_from(cs)?,
-            name,
-            namespace,
+            name: cs.name_any(),
+            namespace: cs.namespace().unwrap_or_default(),
         })
     }
 }
@@ -57,10 +55,9 @@ impl TryFrom<&CoreService> for ExternalPort {
     type Error = anyhow::Error;
 
     fn try_from(cs: &CoreService) -> Result<Self, Self::Error> {
-        if let Some(anno) = cs.metadata.clone().annotations {
-            if anno.contains_key(ANNOTATION) {
-                return ExternalPort::from_str(&anno[ANNOTATION]);
-            }
+        let anno = cs.annotations();
+        if anno.contains_key(ANNOTATION) {
+            return ExternalPort::from_str(&anno[ANNOTATION]);
         }
         Ok(ExternalPort::Absent)
     }

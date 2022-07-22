@@ -102,8 +102,8 @@ impl Operator {
         }
     }
 
-    pub fn reconcile(&mut self, new_state: &State, old_state: &State) -> Result {
-        let (added, removed) = new_state.diff(old_state);
+    pub fn reconcile(&mut self, state: &State, prev_state: &State) -> Result {
+        let (added, removed) = state.diff(prev_state);
         if added.is_empty() && removed.is_empty() {
             return Ok(());
         }
@@ -114,18 +114,12 @@ impl Operator {
         self.read_rule_state();
 
         // Case 1: same node set
-        if new_state.nodes == old_state.nodes {
-            self.apply_rules(make_rules(&State {
-                nodes: new_state.nodes.clone(),
-                ..added
-            }))?;
+        if state.nodes == prev_state.nodes {
+            let removed_service_ids = make_rules(&removed.with_nodes(&state.nodes))
+                .map(|rule| rule.service_id())
+                .collect::<Vec<_>>();
 
-            let removed_service_ids = make_rules(&State {
-                nodes: new_state.nodes.clone(),
-                ..removed
-            })
-            .map(|rule| rule.service_id())
-            .collect::<Vec<_>>();
+            self.apply_rules(make_rules(&added.with_nodes(&state.nodes)))?;
 
             return self.delete_rules(|&rule| {
                 removed_service_ids
@@ -135,7 +129,7 @@ impl Operator {
         }
 
         // Case 2: node added/removed => full cycle
-        let new_rules = make_rules(new_state).collect::<Vec<_>>();
+        let new_rules = make_rules(state).collect::<Vec<_>>();
 
         let new_rule_ids = new_rules
             .iter()

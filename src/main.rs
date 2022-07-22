@@ -132,13 +132,13 @@ impl App {
     async fn reconcile(app_arc: Arc<Mutex<Self>>, operator_arc: Arc<Mutex<Operator>>) {
         let mut this = app_arc.lock().await;
 
-        let old_state = this.get();
-        let new_state = this.reduce();
+        let prev_state = this.get();
+        let state = this.reduce();
 
         tokio::task::spawn(async move {
             let mut operator = operator_arc.lock().await;
             info!("calling operator.reconcile()");
-            if let Err(x) = operator.reconcile(&new_state, &old_state) {
+            if let Err(x) = operator.reconcile(&state, &prev_state) {
                 warn!("error during reconcile: {:?}", x)
             }
         });

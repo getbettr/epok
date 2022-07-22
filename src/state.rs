@@ -38,10 +38,17 @@ impl Sub for &State {
 }
 
 impl State {
-    pub fn diff(&self, old_state: &Self) -> (Self, Self) {
-        let added = self - old_state;
-        let removed = old_state - self;
+    pub fn diff(&self, prev_state: &Self) -> (Self, Self) {
+        let added = self - prev_state;
+        let removed = prev_state - self;
         (added, removed)
+    }
+
+    pub fn with_nodes(self, nodes: &BTreeSet<Node>) -> Self {
+        Self {
+            nodes: nodes.clone(),
+            ..self
+        }
     }
 }
 

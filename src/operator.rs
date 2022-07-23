@@ -326,6 +326,35 @@ mod tests {
             }))
     }
 
+    #[test]
+    fn it_removes_services() {
+        let backend = TestBackend::default();
+        let rules = backend.rules.clone();
+        let mut operator = Operator::new(backend);
+
+        let state0 = empty_state().with_services([service_with_ep(ExternalPort::Spec {
+            host_port: 123,
+            node_port: 456,
+        })]);
+        operator.reconcile(&state0, &empty_state()).unwrap();
+
+        let _rules = rules.borrow();
+        assert_eq!(&_rules.len(), &1);
+        assert_eq!(
+            &_rules[0].service.external_port,
+            &ExternalPort::Spec {
+                host_port: 123,
+                node_port: 456
+            }
+        );
+        drop(_rules);
+
+        let state1 = state0.clone().with_services([]);
+        operator.reconcile(&state1, &state0).unwrap();
+
+        assert_eq!(rules.borrow().len(), 0);
+    }
+
     fn empty_state() -> State {
         State::default()
             .with_interfaces(vec!["eth0".to_owned()])

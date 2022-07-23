@@ -4,6 +4,7 @@ use tokio::time::Duration;
 
 pub mod batch;
 pub mod cli;
+pub mod iptables;
 pub mod logging;
 pub mod operator;
 pub mod res;
@@ -18,6 +19,7 @@ lazy_static! {
 
 pub use batch::*;
 pub use cli::*;
+pub use iptables::*;
 pub use logging::*;
 pub use operator::*;
 pub use res::{ExternalPort, Node, Service};

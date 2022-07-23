@@ -13,13 +13,6 @@ pub struct State {
 }
 
 impl State {
-    pub fn with_interfaces(interfaces: Vec<Interface>) -> Self {
-        Self {
-            interfaces,
-            ..Self::default()
-        }
-    }
-
     pub fn is_empty(&self) -> bool {
         self.services.is_empty() && self.nodes.is_empty()
     }
@@ -44,9 +37,20 @@ impl State {
         (added, removed)
     }
 
-    pub fn with_nodes(self, nodes: &BTreeSet<Node>) -> Self {
+    pub fn with_interfaces(self, interfaces: Vec<Interface>) -> Self {
+        Self { interfaces, ..self }
+    }
+
+    pub fn with_nodes(self, nodes: impl IntoIterator<Item = Node>) -> Self {
         Self {
-            nodes: nodes.clone(),
+            nodes: nodes.into_iter().collect(),
+            ..self
+        }
+    }
+
+    pub fn with_services(self, services: impl IntoIterator<Item = Service>) -> Self {
+        Self {
+            services: services.into_iter().collect(),
             ..self
         }
     }

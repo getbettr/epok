@@ -43,11 +43,14 @@ async fn main() -> anyhow::Result<()> {
     )
     .for_each(|event| async { App::process_event(event.unwrap(), &op_sender).await });
 
-    let operator_arc = Arc::new(Mutex::new(Operator::new(opts.executor, opts.batch_opts)));
+    let backend = IptablesBackend::new(opts.executor, opts.batch_opts);
+    let operator = Operator::new(backend);
+
+    let operator_arc = Arc::new(Mutex::new(operator));
 
     let app_arc = Arc::new(Mutex::new(App {
         op_queue: VecDeque::new(),
-        state: State::with_interfaces(
+        state: State::default().with_interfaces(
             opts.interfaces
                 .split(',')
                 .map(String::from)
@@ -129,7 +132,10 @@ impl App {
         }
     }
 
-    async fn reconcile(app_arc: Arc<Mutex<Self>>, operator_arc: Arc<Mutex<Operator>>) {
+    async fn reconcile(
+        app_arc: Arc<Mutex<Self>>,
+        operator_arc: Arc<Mutex<Operator<IptablesBackend>>>,
+    ) {
         let mut this = app_arc.lock().await;
 
         let prev_state = this.get();

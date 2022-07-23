@@ -16,7 +16,8 @@ fn main() -> anyhow::Result<()> {
     initialize_logging("EPOK_LOG_LEVEL");
 
     let opts = Opts::parse();
-    let mut operator = Operator::new(opts.executor, opts.batch_opts);
+    let backend = IptablesBackend::new(opts.executor, opts.batch_opts);
+    let mut operator = Operator::new(backend);
 
     warn!("deleting all rules");
 

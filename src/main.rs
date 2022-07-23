@@ -4,7 +4,10 @@ use clap::Parser;
 use futures::StreamExt;
 use kube::{
     api::ListParams,
-    runtime::{watcher, watcher::Event},
+    runtime::{
+        watcher,
+        watcher::{Error as Werror, Event},
+    },
     Api, Client,
 };
 use tokio::{
@@ -35,13 +38,13 @@ async fn main() -> anyhow::Result<()> {
         Api::<CoreService>::all(kube_client.clone()),
         ListParams::default(),
     )
-    .for_each(|event| async { App::process_event(event.unwrap(), &op_sender).await });
+    .for_each(|event| async { App::process_event(event, &op_sender).await });
 
     let node_watcher = watcher(
         Api::<CoreNode>::all(kube_client.clone()),
         ListParams::default(),
     )
-    .for_each(|event| async { App::process_event(event.unwrap(), &op_sender).await });
+    .for_each(|event| async { App::process_event(event, &op_sender).await });
 
     let backend = IptablesBackend::new(opts.executor, opts.batch_opts);
     let operator = Operator::new(backend);
@@ -123,12 +126,19 @@ impl App {
         self.get()
     }
 
-    async fn process_event<T>(ev: Event<T>, tx: &Sender<Op>)
+    async fn process_event<T>(ev: Result<Event<T>, Werror>, tx: &Sender<Op>)
     where
         Ops: From<Event<T>>,
     {
-        for op in Ops::from(ev) {
-            tx.send(op).await.expect("send failed");
+        match ev {
+            Ok(inner) => {
+                for op in Ops::from(inner) {
+                    tx.send(op).await.expect("send failed");
+                }
+            }
+            Err(e) => {
+                warn!("error during list: {:?}", e)
+            }
         }
     }
 

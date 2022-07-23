@@ -1,12 +1,14 @@
 use std::{collections::VecDeque, sync::Arc};
 
+use backoff::{backoff::Backoff, ExponentialBackoff};
 use clap::Parser;
 use futures::StreamExt;
 use kube::{
     api::ListParams,
     runtime::{
+        utils::StreamBackoff,
         watcher,
-        watcher::{Error as Werror, Event},
+        watcher::{Error as WatchError, Event},
     },
     Api, Client,
 };
@@ -34,15 +36,21 @@ async fn main() -> anyhow::Result<()> {
 
     let (op_sender, mut op_receiver) = mpsc::channel(1);
 
-    let service_watcher = watcher(
-        Api::<CoreService>::all(kube_client.clone()),
-        ListParams::default(),
+    let service_watcher = StreamBackoff::new(
+        watcher(
+            Api::<CoreService>::all(kube_client.clone()),
+            ListParams::default(),
+        ),
+        backoff(),
     )
     .for_each(|event| async { App::process_event(event, &op_sender).await });
 
-    let node_watcher = watcher(
-        Api::<CoreNode>::all(kube_client.clone()),
-        ListParams::default(),
+    let node_watcher = StreamBackoff::new(
+        watcher(
+            Api::<CoreNode>::all(kube_client.clone()),
+            ListParams::default(),
+        ),
+        backoff(),
     )
     .for_each(|event| async { App::process_event(event, &op_sender).await });
 
@@ -106,6 +114,17 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn backoff() -> impl Backoff + Send + Sync {
+    ExponentialBackoff {
+        initial_interval: Duration::from_millis(800),
+        max_interval: Duration::from_secs(30),
+        randomization_factor: 1.0,
+        multiplier: 2.0,
+        max_elapsed_time: Some(Duration::from_secs(60)),
+        ..ExponentialBackoff::default()
+    }
+}
+
 impl App {
     fn queue(&mut self, op: Op) {
         self.op_queue.push_back(op);
@@ -126,7 +145,7 @@ impl App {
         self.get()
     }
 
-    async fn process_event<T>(ev: Result<Event<T>, Werror>, tx: &Sender<Op>)
+    async fn process_event<T>(ev: Result<Event<T>, WatchError>, tx: &Sender<Op>)
     where
         Ops: From<Event<T>>,
     {

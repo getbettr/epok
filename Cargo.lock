@@ -239,6 +239,7 @@ name = "epok"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "backoff",
  "clap",
  "cmd_lib",
  "futures",

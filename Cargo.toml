@@ -7,6 +7,10 @@ edition = "2021"
 publish = ["getbetter"]
 
 [[bin]]
+name = "epok"
+path = "src/main.rs"
+
+[[bin]]
 name = "epok-clean"
 path = "src/bin/cleanup.rs"
 

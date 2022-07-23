@@ -3,7 +3,7 @@
 # just manual: https://github.com/casey/just/#readme
 REGISTRY := "registry-np.storage-system.svc.k8s.local:5000"
 PROJECT := "epok"
-HUB := "hub-cache.getbetter.ro"
+HUB := `echo ${DOCKER_HUB:-"hub-cache.getbetter.ro"}`
 CACHE_BUST := `date +%Y-%m-%d:%H:%M:%S`
 
 _default:
@@ -43,31 +43,38 @@ _tag:
 # Put together the full docker image
 _image:
   #!/usr/bin/env bash
+  if [ ! -z ${EPOK_IMAGE+x} ]; then
+    echo $EPOK_IMAGE; exit
+  fi
   tag=$(just _tag)
   echo {{REGISTRY}}/{{PROJECT}}:$tag
 
 # Pull the docker image
 pull:
-  #!/usr/bin/env bash
-  image=$(just _image)
-  docker pull $image
+  docker pull `just _image`
+
+# Release using docker
+docker-release *DOCKER_ARGS="":
+  # '-v $CARGO_HOME:/tmp/.cargo_home' to reuse the local cargo cache
+  mkdir -p target
+  docker build -t `just _image`-release \
+    --build-arg HUB={{HUB}} \
+    {{DOCKER_ARGS}} \
+    -v $(pwd)/target:/epok/target \
+    -f docker/Dockerfile-release .
 
 # Build the docker image
 docker:
-  #!/usr/bin/env bash
-  echo {{CACHE_BUST}}
-  image=$(just _image)
-  docker build -t $image --build-arg HUB={{HUB}} --build-arg CACHE_BUST={{CACHE_BUST}} -f docker/Dockerfile .
+  docker build -t `just _image` \
+    --build-arg HUB={{HUB}} \
+    --build-arg CACHE_BUST={{CACHE_BUST}} \
+    -f docker/Dockerfile .
 
 # Push the docker image
 push:
-  #!/usr/bin/env bash
-  image=$(just _image)
-  docker push $image
+  docker push `just _image`
 
 # Push the "latest" docker image
 push-latest:
-  #!/usr/bin/env bash
-  image=$(just _image)
-  docker tag $image {{REGISTRY}}/{{PROJECT}}:latest
+  docker tag `just _image` {{REGISTRY}}/{{PROJECT}}:latest
   docker push {{REGISTRY}}/{{PROJECT}}:latest

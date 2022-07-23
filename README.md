@@ -69,6 +69,9 @@ Set up some configuration values:
 
 ```shell
 cat > epok.config <<EOF
+# Where should we pull base images from?
+DOCKER_HUB=docker.io
+
 # Where should we push the docker image? Should be reachable from cluster.
 EPOK_IMAGE="my.docker.registry/epok:latest"
 
@@ -95,8 +98,7 @@ Dockerize epok:
 
 ```shell
 source epok.config
-docker build -f docker/Dockerfile . -t $EPOK_IMAGE
-docker push $EPOK_IMAGE
+just docker-release docker push
 ```
 
 Create the namespace, secret and deploy using the supplied [example manifests](examples/k8s-manifests.yaml):

@@ -1,0 +1,20 @@
+# inspiration for caching: https://stackoverflow.com/a/58474618
+
+ARG HUB=docker.io
+FROM ${HUB}/library/rust:1.62.1-bullseye
+
+WORKDIR /epok
+
+ENV CARGO_HOME=/tmp/.cargo_home
+
+COPY Cargo.toml Cargo.lock ./
+
+RUN set -eux; \
+    echo "fn main() {}" > dummy.rs; \
+    sed -i 's#src/main.rs#dummy.rs#' Cargo.toml; \
+    cargo build --release --bin epok; \
+    sed -i 's#dummy.rs#src/main.rs#' Cargo.toml
+
+COPY ./src ./src
+
+RUN cargo build --release

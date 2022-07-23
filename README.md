@@ -8,17 +8,30 @@ will handle the `iptables` rules to forward port `25` on your host machine to
 ## Usage
 
 ```
-epok --interfaces <INTERFACES> <SUBCOMMAND>
+epok [OPTIONS] --interfaces <INTERFACES> <EXECUTOR>
 
 OPTIONS:
-    -i, --interfaces <INTERFACES>    Comma-separated list of interfaces to forward packets from
-                                     [env: EPOK_INTERFACES=]
-SUBCOMMANDS:
-    local    Run operator on bare metal host
-    ssh      Run operator inside cluster, SSH-ing back to the metal
+    -i, --interfaces <INTERFACES>
+            Comma-separated list of interfaces to forward packets from [env: EPOK_INTERFACES=]
+
+        --batch-commands <batch-commands>
+            Batch the execution of iptables commands [env: EPOK_BATCH_COMMANDS=] [default: true]
+
+        --batch-size <BATCH_SIZE>
+            Maximum command batch size [env: EPOK_BATCH_SIZE=] [default: 1677722]
+
+    -h, --help
+            Print help information
+
+    -V, --version
+            Print version information
+
+EXECUTORS:
+    local    Execute commands locally
+    ssh      Execute commands through ssh
 ```
 
-### SSH Mode
+### SSH Executor
 
 This is a hack for allowing epok deployed in a self-hosted cluster to talk
 to the host machine and manipulate its `iptables` rules.
@@ -47,7 +60,7 @@ NOTE: [`sealedsecrets`](https://github.com/bitnami-labs/sealed-secrets) is a goo
 To test epok connectivity:
 
 ```shell
-epok -i eth0 ssh -H $EPOK_USER@host_machine -k /path/to/private.key
+epok -i eth0 ssh --host $EPOK_USER@host_machine --key /path/to/private.key
 ```
 
 ### Kubernetes deployment example

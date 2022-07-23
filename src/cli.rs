@@ -1,12 +1,26 @@
-use clap::{crate_authors, crate_description, Args, Parser};
+use clap::{Args, Parser};
 
 use crate::*;
 
 #[derive(Parser, Debug)]
-#[clap(about = crate_description!(), author = crate_authors!("\n"))]
+#[clap(
+    author,
+    version,
+    about,
+    propagate_version = true,
+    subcommand_value_name = "EXECUTOR",
+    subcommand_help_heading = "EXECUTORS",
+    disable_help_subcommand = true
+)]
 pub struct Opts {
     /// Comma-separated list of interfaces to forward packets from
-    #[clap(long, short = 'i', value_parser, env = "EPOK_INTERFACES")]
+    #[clap(
+        long,
+        short = 'i',
+        value_parser,
+        env = "EPOK_INTERFACES",
+        display_order = 0
+    )]
     pub interfaces: String,
 
     #[clap(flatten)]
@@ -30,18 +44,24 @@ pub struct BatchOpts {
 #[derive(Parser, Debug)]
 #[clap(long_about = "En taro Adun")]
 pub enum Executor<Ssh: Args = SshHost> {
-    /// Run operator on bare metal host
+    /// Execute commands locally
     Local,
-    /// Run operator inside cluster, SSH-ing back to the metal
+    /// Execute commands through ssh
     Ssh(Ssh),
 }
 
 #[derive(Parser, Debug)]
 pub struct SshHost {
-    #[clap(short = 'H', value_parser, env = "EPOK_SSH_HOST")]
+    #[clap(short = 'H', long, value_parser, env = "EPOK_SSH_HOST")]
     pub host: String,
-    #[clap(short = 'p', value_parser, env = "EPOK_SSH_PORT", default_value = "22")]
+    #[clap(
+        short = 'p',
+        long,
+        value_parser,
+        env = "EPOK_SSH_PORT",
+        default_value = "22"
+    )]
     pub port: u16,
-    #[clap(short = 'k', value_parser, env = "EPOK_SSH_KEY")]
+    #[clap(short = 'k', long = "key", value_parser, env = "EPOK_SSH_KEY")]
     pub key_path: String,
 }

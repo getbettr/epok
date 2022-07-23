@@ -13,8 +13,12 @@ pub mod state;
 
 lazy_static! {
     static ref ARG_MAX: String = {
-        let res = run_fun!(getconf ARG_MAX).unwrap_or_else(|_| "8192".to_owned());
-        format!("{:.0}", (res.parse::<f32>().unwrap() * 0.8))
+        let default = 8192_u32;
+        let res = run_fun!(getconf ARG_MAX).unwrap_or_else(|_| default.to_string());
+        format!(
+            "{:.0}",
+            (res.parse::<u32>().unwrap_or(default) as f32 * 0.8)
+        )
     };
 }
 

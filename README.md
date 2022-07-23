@@ -44,15 +44,15 @@ export EPOK_USER=epok
 # create the user
 sudo useradd --create-home $EPOK_USER; sudo passwd -d $EPOK_USER
 
+# restrict the epok user to iptables + iptables-save commands
+echo "%${EPOK_USER} ALL=(ALL) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-save" | sudo EDITOR='tee' VISUAL='tee' visudo -f /etc/sudoers.d/$EPOK_USER
+
 # create and authorize an SSH key
 sudo su $EPOK_USER -c ssh-keygen
 sudo mv /home/$EPOK_USER/.ssh/id_rsa.pub /home/$EPOK_USER/.ssh/authorized_keys 
 
 # grab the private key and store it in a safe place
 sudo mv /home/$EPOK_USER/.ssh/id_rsa /path/to/private.key
-
-# restrict the epok user to iptables + iptables-save commands
-echo "%${EPOK_USER} ALL=(ALL) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-save" | sudo EDITOR='tee' VISUAL='tee' visudo -f /etc/sudoers.d/$EPOK_USER
 ```
 
 NOTE: [`sealedsecrets`](https://github.com/bitnami-labs/sealed-secrets) is a good solution for storing the private key inside the cluster.

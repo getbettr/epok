@@ -1,9 +1,9 @@
-use clap::{Args, Parser};
+use clap::{crate_authors, crate_description, Args, Parser};
 
 use crate::*;
 
 #[derive(Parser, Debug)]
-#[clap(about = "External port operator for Kubernetes", author = AUTHOR)]
+#[clap(about = crate_description!(), author = crate_authors!("\n"))]
 pub struct Opts {
     /// Comma-separated list of interfaces to forward packets from
     #[clap(long, short = 'i', value_parser, env = "EPOK_INTERFACES")]
@@ -18,9 +18,11 @@ pub struct Opts {
 
 #[derive(Parser, Debug)]
 pub struct BatchOpts {
+    /// Batch the execution of iptables commands
     #[clap(long, env = "EPOK_BATCH_COMMANDS", default_value = "true")]
     pub batch_commands: bool,
 
+    /// Maximum command batch size
     #[clap(long, env = "EPOK_BATCH_SIZE", default_value = &ARG_MAX)]
     pub batch_size: usize,
 }

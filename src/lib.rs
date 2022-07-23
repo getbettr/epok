@@ -33,8 +33,6 @@ pub use state::{Interface, Op, Ops, State};
 
 pub use k8s_openapi::api::core::v1::{Node as CoreNode, Service as CoreService};
 
-pub const APP_NAME: &str = "epok";
-pub const AUTHOR: &str = "Rareș Cosma - rares@getbetter.ro";
 pub const ANNOTATION: &str = "epok.getbetter.ro/externalport";
 pub const NODE_EXCLUDE_ANNOTATION: &str = "epok.getbetter.ro/exclude";
 pub const NODE_EXCLUDE_LABEL: &str = "epok_exclude";

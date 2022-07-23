@@ -1,9 +1,9 @@
-use clap::Parser;
+use clap::{crate_authors, crate_description, Parser};
 
 use epok::*;
 
 #[derive(Parser, Debug)]
-#[clap(about = "External port operator for Kubernetes", author = AUTHOR)]
+#[clap(about = crate_description!(), author = crate_authors!("\n"))]
 pub struct Opts {
     #[clap(flatten)]
     pub batch_opts: BatchOpts,

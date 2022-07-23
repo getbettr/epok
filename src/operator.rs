@@ -25,19 +25,22 @@ pub struct BaseRule {
 
 impl BaseRule {
     pub fn rule_id(&self) -> String {
-        digest(format!(
+        let mut rule_id = digest(format!(
             "{}::{}::{}::{}::{}",
             self.service_id(),
             self.node.addr,
             self.num_nodes,
             self.node_index,
             self.interface,
-        ))
+        ));
+        rule_id.truncate(16);
+        rule_id
     }
 
     pub fn service_id(&self) -> String {
-        let svc_hash = digest(self.service.fqn());
-        let port_hash = match self.service.external_port {
+        let mut svc_hash = digest(self.service.fqn());
+        svc_hash.truncate(16);
+        let mut port_hash = match self.service.external_port {
             ExternalPort::Spec {
                 host_port,
                 node_port,
@@ -46,6 +49,7 @@ impl BaseRule {
             }
             ExternalPort::Absent => "".to_string(),
         };
+        port_hash.truncate(16);
         format!("{}{}", svc_hash, port_hash)
     }
 }

@@ -101,7 +101,7 @@ mod tests {
 
     quickcheck! {
         fn concat_invariant(input: Vec<String>, joiner: String, arg_max: usize) -> TestResult {
-            if arg_max < 1 {
+            if arg_max < 2 {
                 return TestResult::discard();
             }
 

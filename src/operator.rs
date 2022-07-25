@@ -138,11 +138,16 @@ fn make_rules(state: &State) -> Vec<Rule> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{cell::RefCell, rc::Rc};
 
     #[derive(Default)]
     struct TestBackend {
-        rules: Rc<RefCell<Vec<Rule>>>,
+        rules: Vec<Rule>,
+    }
+
+    impl Operator<TestBackend> {
+        fn get_rules(&self) -> Vec<Rule> {
+            self.backend.borrow().rules.clone()
+        }
     }
 
     impl Backend for TestBackend {
@@ -151,9 +156,8 @@ mod tests {
         }
 
         fn apply_rules(&mut self, rules: impl Iterator<Item = Rule>) -> Result {
-            let mut my_rules = self.rules.borrow_mut();
             for rule in rules {
-                my_rules.push(rule);
+                self.rules.push(rule);
             }
             Ok(())
         }
@@ -162,8 +166,8 @@ mod tests {
         where
             P: FnMut(&&str) -> bool,
         {
-            let mut my_rules = self.rules.borrow_mut();
-            my_rules.retain(|r| !pred(&format!("{} {}", r.rule_id(), r.service_id()).as_str()));
+            self.rules
+                .retain(|r| !pred(&format!("{} {}", r.rule_id(), r.service_id()).as_str()));
             Ok(())
         }
     }
@@ -171,19 +175,18 @@ mod tests {
     #[test]
     fn test_trivial() {
         let backend = TestBackend::default();
-        let check = backend.rules.clone();
         let operator = Operator::new(backend);
 
         let res = operator.reconcile(&State::default(), &State::default());
-
         assert!(res.is_ok());
-        assert!(check.borrow().is_empty());
+
+        let rules = operator.get_rules();
+        assert!(rules.is_empty());
     }
 
     #[test]
     fn it_replaces_svc_on_port_change() {
         let backend = TestBackend::default();
-        let rules = backend.rules.clone();
         let operator = Operator::new(backend);
 
         let state0 = empty_state();
@@ -196,16 +199,15 @@ mod tests {
             })]);
         operator.reconcile(&state1, &state0).unwrap();
 
-        let _rules = rules.borrow();
-        assert_eq!(&_rules.len(), &1);
+        let rules = operator.get_rules();
+        assert_eq!(rules.len(), 1);
         assert_eq!(
-            &_rules[0].service.external_port,
-            &ExternalPort::Spec {
+            rules[0].service.external_port,
+            ExternalPort::Spec {
                 host_port: 123,
                 node_port: 456
             }
         );
-        drop(_rules);
 
         let state2 = state1
             .clone()
@@ -215,10 +217,10 @@ mod tests {
             })]);
         operator.reconcile(&state2, &state1).unwrap();
 
-        let _rules = rules.borrow();
-        assert_eq!(_rules.len(), 1);
+        let rules = operator.get_rules();
+        assert_eq!(rules.len(), 1);
         assert_eq!(
-            _rules[0].service.external_port,
+            rules[0].service.external_port,
             ExternalPort::Spec {
                 host_port: 1234,
                 node_port: 456
@@ -229,7 +231,6 @@ mod tests {
     #[test]
     fn it_deletes_all_rules_when_no_nodes_left() {
         let backend = TestBackend::default();
-        let rules = backend.rules.clone();
         let operator = Operator::new(backend);
 
         let state0 = empty_state();
@@ -245,13 +246,13 @@ mod tests {
         let state2 = state1.clone().with_nodes([]);
         operator.reconcile(&state2, &state1).unwrap();
 
-        assert_eq!(rules.borrow().len(), 0);
+        let rules = operator.get_rules();
+        assert_eq!(rules.len(), 0);
     }
 
     #[test]
     fn it_handles_service_remove_node_add_correctly() {
         let backend = TestBackend::default();
-        let rules = backend.rules.clone();
         let operator = Operator::new(backend);
 
         let state0 = empty_state();
@@ -288,9 +289,9 @@ mod tests {
             })]);
         operator.reconcile(&state2, &state1).unwrap();
 
-        let _rules = rules.borrow();
-        assert_eq!(_rules.len(), 2);
-        assert!(_rules.iter().all(|x| x.service.external_port
+        let rules = operator.get_rules();
+        assert_eq!(rules.len(), 2);
+        assert!(rules.iter().all(|x| x.service.external_port
             == ExternalPort::Spec {
                 host_port: 789,
                 node_port: 654
@@ -300,7 +301,6 @@ mod tests {
     #[test]
     fn it_removes_services() {
         let backend = TestBackend::default();
-        let rules = backend.rules.clone();
         let operator = Operator::new(backend);
 
         let state0 = empty_state().with_services([service_with_ep(ExternalPort::Spec {
@@ -309,21 +309,21 @@ mod tests {
         })]);
         operator.reconcile(&state0, &empty_state()).unwrap();
 
-        let _rules = rules.borrow();
-        assert_eq!(&_rules.len(), &1);
+        let rules = operator.get_rules();
+        assert_eq!(rules.len(), 1);
         assert_eq!(
-            &_rules[0].service.external_port,
-            &ExternalPort::Spec {
+            rules[0].service.external_port,
+            ExternalPort::Spec {
                 host_port: 123,
                 node_port: 456
             }
         );
-        drop(_rules);
 
         let state1 = state0.clone().with_services([]);
         operator.reconcile(&state1, &state0).unwrap();
 
-        assert_eq!(rules.borrow().len(), 0);
+        let rules = operator.get_rules();
+        assert_eq!(rules.len(), 0);
     }
 
     fn empty_state() -> State {

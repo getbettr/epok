@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use itertools::iproduct;
 use sha256::digest;
 
@@ -53,17 +55,20 @@ impl Rule {
     }
 }
 
-pub struct Operator<B: Backend> {
-    backend: B,
+pub struct Operator<B> {
+    backend: RefCell<B>,
 }
 
 impl<B: Backend> Operator<B> {
     pub fn new(backend: B) -> Self {
-        Self { backend }
+        Self {
+            backend: RefCell::new(backend),
+        }
     }
 
-    pub fn reconcile(&mut self, state: &State, prev_state: &State) -> Result {
+    pub fn reconcile(&self, state: &State, prev_state: &State) -> Result {
         let (added, removed) = state.diff(prev_state);
+        let mut backend = self.backend.borrow_mut();
         if added.is_empty() && removed.is_empty() {
             return Ok(());
         }
@@ -71,7 +76,7 @@ impl<B: Backend> Operator<B> {
         info!("added state: {:?}", &added);
         info!("removed state: {:?}", &removed);
 
-        self.backend.read_state();
+        backend.read_state();
 
         // Case 1: same node set
         if state.nodes == prev_state.nodes {
@@ -80,10 +85,9 @@ impl<B: Backend> Operator<B> {
                 .map(|rule| rule.service_id())
                 .collect::<Vec<_>>();
 
-            self.backend
-                .apply_rules(make_rules(&added.with_nodes(state.nodes.clone())).into_iter())?;
+            backend.apply_rules(make_rules(&added.with_nodes(state.nodes.clone())).into_iter())?;
 
-            return self.backend.delete_rules(|&rule| {
+            return backend.delete_rules(|&rule| {
                 removed_service_ids
                     .iter()
                     .any(|service_id| rule.contains(service_id))
@@ -98,18 +102,19 @@ impl<B: Backend> Operator<B> {
             .map(|rule| rule.rule_id())
             .collect::<Vec<_>>();
 
-        self.backend.apply_rules(new_rules.into_iter())?;
+        backend.apply_rules(new_rules.into_iter())?;
 
-        self.backend.delete_rules(|&rule| {
+        backend.delete_rules(|&rule| {
             new_rule_ids
                 .iter()
                 .all(|new_rule_id| !rule.contains(new_rule_id))
         })
     }
 
-    pub fn cleanup(&mut self) -> Result {
-        self.backend.read_state();
-        self.backend.delete_rules(|_| true)
+    pub fn cleanup(&self) -> Result {
+        let mut backend = self.backend.borrow_mut();
+        backend.read_state();
+        backend.delete_rules(|_| true)
     }
 }
 
@@ -167,7 +172,7 @@ mod tests {
     fn test_trivial() {
         let backend = TestBackend::default();
         let check = backend.rules.clone();
-        let mut operator = Operator::new(backend);
+        let operator = Operator::new(backend);
 
         let res = operator.reconcile(&State::default(), &State::default());
 
@@ -179,7 +184,7 @@ mod tests {
     fn it_replaces_svc_on_port_change() {
         let backend = TestBackend::default();
         let rules = backend.rules.clone();
-        let mut operator = Operator::new(backend);
+        let operator = Operator::new(backend);
 
         let state0 = empty_state();
 
@@ -225,7 +230,7 @@ mod tests {
     fn it_deletes_all_rules_when_no_nodes_left() {
         let backend = TestBackend::default();
         let rules = backend.rules.clone();
-        let mut operator = Operator::new(backend);
+        let operator = Operator::new(backend);
 
         let state0 = empty_state();
 
@@ -247,7 +252,7 @@ mod tests {
     fn it_handles_service_remove_node_add_correctly() {
         let backend = TestBackend::default();
         let rules = backend.rules.clone();
-        let mut operator = Operator::new(backend);
+        let operator = Operator::new(backend);
 
         let state0 = empty_state();
         let state1 = state0.clone().with_services([
@@ -296,7 +301,7 @@ mod tests {
     fn it_removes_services() {
         let backend = TestBackend::default();
         let rules = backend.rules.clone();
-        let mut operator = Operator::new(backend);
+        let operator = Operator::new(backend);
 
         let state0 = empty_state().with_services([service_with_ep(ExternalPort::Spec {
             host_port: 123,

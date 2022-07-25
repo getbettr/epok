@@ -17,9 +17,8 @@ fn main() -> anyhow::Result<()> {
 
     let opts = Opts::parse();
     let backend = IptablesBackend::new(opts.executor, opts.batch_opts);
-    let mut operator = Operator::new(backend);
+    let operator = Operator::new(backend);
 
     warn!("deleting all rules");
-
     operator.cleanup()
 }

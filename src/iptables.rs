@@ -19,7 +19,7 @@ impl Backend for IptablesBackend {
             .unwrap_or_else(|_| "".to_owned());
     }
 
-    fn apply_rules(&mut self, rules: impl Iterator<Item = BaseRule>) -> Result {
+    fn apply_rules(&mut self, rules: impl Iterator<Item = Rule>) -> Result {
         self.executor.run_commands(
             rules
                 .filter(|rule| !self.rule_state.contains(&rule.rule_id()))
@@ -57,7 +57,7 @@ fn append_to_delete(rule: &str) -> String {
     format!("sudo iptables -w -t nat -D {}", rule_parts.join(" "))
 }
 
-fn iptables_args(rule: &BaseRule) -> String {
+fn iptables_args(rule: &Rule) -> String {
     let (host_port, node_port) = rule.service.get_ports().expect("invalid service");
 
     let input = format!(

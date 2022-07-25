@@ -7,14 +7,14 @@ type Result = anyhow::Result<()>;
 
 pub trait Backend {
     fn read_state(&mut self);
-    fn apply_rules(&mut self, rules: impl Iterator<Item = BaseRule>) -> Result;
+    fn apply_rules(&mut self, rules: impl Iterator<Item = Rule>) -> Result;
     fn delete_rules<P>(&mut self, pred: P) -> Result
     where
         P: FnMut(&&str) -> bool;
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct BaseRule {
+pub struct Rule {
     pub node: Node,
     pub service: Service,
     pub interface: Interface,
@@ -22,7 +22,7 @@ pub struct BaseRule {
     pub node_index: usize,
 }
 
-impl BaseRule {
+impl Rule {
     pub fn rule_id(&self) -> String {
         let mut rule_id = digest(format!(
             "{}::{}::{}::{}::{}",
@@ -113,14 +113,14 @@ impl<B: Backend> Operator<B> {
     }
 }
 
-fn make_rules(state: &State) -> Vec<BaseRule> {
+fn make_rules(state: &State) -> Vec<Rule> {
     let num_nodes = state.nodes.len();
     iproduct!(
         state.nodes.iter().enumerate(),
         &state.services,
         &state.interfaces
     )
-    .map(|((node_index, node), service, interface)| BaseRule {
+    .map(|((node_index, node), service, interface)| Rule {
         node: node.to_owned(),
         service: service.to_owned(),
         interface: interface.to_owned(),
@@ -137,7 +137,7 @@ mod tests {
 
     #[derive(Default)]
     struct TestBackend {
-        rules: Rc<RefCell<Vec<BaseRule>>>,
+        rules: Rc<RefCell<Vec<Rule>>>,
     }
 
     impl Backend for TestBackend {
@@ -145,7 +145,7 @@ mod tests {
             // noop: we keep state in memory
         }
 
-        fn apply_rules(&mut self, rules: impl Iterator<Item = BaseRule>) -> Result {
+        fn apply_rules(&mut self, rules: impl Iterator<Item = Rule>) -> Result {
             let mut my_rules = self.rules.borrow_mut();
             for rule in rules {
                 my_rules.push(rule);

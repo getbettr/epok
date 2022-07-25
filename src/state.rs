@@ -6,7 +6,7 @@ use crate::*;
 
 #[derive(Clone, Default, Debug)]
 pub struct State {
-    pub resources: BTreeSet<Resource>,
+    resources: BTreeSet<Resource>,
 }
 
 impl State {

@@ -9,7 +9,7 @@ type Result = anyhow::Result<()>;
 
 pub trait Backend {
     fn read_state(&mut self);
-    fn apply_rules(&mut self, rules: impl Iterator<Item = Rule>) -> Result;
+    fn apply_rules(&mut self, rules: impl IntoIterator<Item = Rule>) -> Result;
     fn delete_rules<P>(&mut self, pred: P) -> Result
     where
         P: FnMut(&&str) -> bool;
@@ -82,11 +82,10 @@ impl<B: Backend> Operator<B> {
         if state.get::<Node>() == prev_state.get::<Node>() {
             let removed_service_ids = make_rules(&state.clone().with(removed.get::<Service>()))
                 .iter()
-                .map(|rule| rule.service_id())
+                .map(Rule::service_id)
                 .collect::<Vec<_>>();
 
-            backend
-                .apply_rules(make_rules(&state.clone().with(added.get::<Service>())).into_iter())?;
+            backend.apply_rules(make_rules(&state.clone().with(added.get::<Service>())))?;
 
             return backend.delete_rules(|&rule| {
                 removed_service_ids
@@ -98,12 +97,9 @@ impl<B: Backend> Operator<B> {
         // Case 2: node added/removed => full cycle
         let new_rules = make_rules(state);
 
-        let new_rule_ids = new_rules
-            .iter()
-            .map(|rule| rule.rule_id())
-            .collect::<Vec<_>>();
+        let new_rule_ids = new_rules.iter().map(Rule::rule_id).collect::<Vec<_>>();
 
-        backend.apply_rules(new_rules.into_iter())?;
+        backend.apply_rules(new_rules)?;
 
         backend.delete_rules(|&rule| {
             new_rule_ids
@@ -156,7 +152,7 @@ mod tests {
             // noop: we keep state in memory
         }
 
-        fn apply_rules(&mut self, rules: impl Iterator<Item = Rule>) -> Result {
+        fn apply_rules(&mut self, rules: impl IntoIterator<Item = Rule>) -> Result {
             for rule in rules {
                 self.rules.push(rule);
             }

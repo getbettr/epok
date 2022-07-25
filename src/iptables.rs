@@ -19,9 +19,10 @@ impl Backend for IptablesBackend {
             .unwrap_or_else(|_| "".to_owned());
     }
 
-    fn apply_rules(&mut self, rules: impl Iterator<Item = Rule>) -> Result {
+    fn apply_rules(&mut self, rules: impl IntoIterator<Item = Rule>) -> Result {
         self.executor.run_commands(
             rules
+                .into_iter()
                 .filter(|rule| !self.rule_state.contains(&rule.rule_id()))
                 .sorted_unstable_by_key(|r| Reverse(r.node_index))
                 .map(|rule| format!("sudo iptables -w -t nat -A {}", iptables_args(&rule))),

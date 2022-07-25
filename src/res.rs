@@ -8,6 +8,7 @@ use crate::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Resource {
+    Interface(Interface),
     Node(Node),
     Service(Service),
 }
@@ -15,6 +16,7 @@ pub enum Resource {
 impl Resource {
     pub fn id(&self) -> String {
         match self {
+            Resource::Interface(i) => i.to_owned(),
             Resource::Node(n) => n.name.to_owned(),
             Resource::Service(s) => s.fqn(),
         }
@@ -22,6 +24,7 @@ impl Resource {
 
     pub fn type_id(&self) -> TypeId {
         match self {
+            Resource::Interface(_) => TypeId::of::<Interface>(),
             Resource::Node(_) => TypeId::of::<Node>(),
             Resource::Service(_) => TypeId::of::<Service>(),
         }
@@ -29,6 +32,7 @@ impl Resource {
 
     pub fn is_active(&self) -> bool {
         match self {
+            Resource::Interface(_) => true,
             Resource::Node(n) => n.is_active,
             Resource::Service(s) => s.has_external_port(),
         }
@@ -64,6 +68,25 @@ impl TryFrom<CoreNode> for Resource {
             is_active,
         }
         .into())
+    }
+}
+
+pub type Interface = String;
+
+impl From<Interface> for Resource {
+    fn from(i: Interface) -> Self {
+        Self::Interface(i)
+    }
+}
+
+impl TryFrom<Resource> for Interface {
+    type Error = ();
+
+    fn try_from(res: Resource) -> Result<Self, Self::Error> {
+        match res {
+            Resource::Interface(i) => Ok(i),
+            _ => Err(()),
+        }
     }
 }
 

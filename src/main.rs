@@ -34,12 +34,7 @@ async fn main() -> anyhow::Result<()> {
     debug!("parsed options: {:?}", opts);
 
     let app = &Arc::new(Mutex::new(App {
-        state: State::default().with_interfaces(
-            opts.interfaces
-                .split(',')
-                .map(String::from)
-                .collect::<Vec<_>>(),
-        ),
+        state: State::default().with(opts.interfaces.split(',').map(Interface::from)),
         operator: Operator::new(IptablesBackend::new(opts.executor, opts.batch_opts)),
     }));
 

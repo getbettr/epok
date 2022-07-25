@@ -80,12 +80,13 @@ impl<B: Backend> Operator<B> {
 
         // Case 1: same node set
         if state.get::<Node>() == prev_state.get::<Node>() {
-            let removed_service_ids = make_rules(&removed.with(state.get::<Node>()))
+            let removed_service_ids = make_rules(&state.clone().with(removed.get::<Service>()))
                 .iter()
                 .map(|rule| rule.service_id())
                 .collect::<Vec<_>>();
 
-            backend.apply_rules(make_rules(&added.with(state.get::<Node>())).into_iter())?;
+            backend
+                .apply_rules(make_rules(&state.clone().with(added.get::<Service>())).into_iter())?;
 
             return backend.delete_rules(|&rule| {
                 removed_service_ids
@@ -123,7 +124,7 @@ fn make_rules(state: &State) -> Vec<Rule> {
     iproduct!(
         state.get::<Node>().iter().enumerate(),
         &state.get::<Service>(),
-        &state.interfaces
+        &state.get::<Interface>()
     )
     .map(|((node_index, node), service, interface)| Rule {
         node: node.to_owned(),
@@ -321,13 +322,11 @@ mod tests {
     }
 
     fn empty_state() -> State {
-        State::default()
-            .with_interfaces(vec!["eth0".to_owned()])
-            .with([Node {
-                name: "foo".to_string(),
-                addr: "bar".to_string(),
-                is_active: true,
-            }])
+        State::default().with(vec!["eth0".to_owned()]).with([Node {
+            name: "foo".to_string(),
+            addr: "bar".to_string(),
+            is_active: true,
+        }])
     }
 
     fn service_with_ep(external_port: ExternalPort) -> Service {

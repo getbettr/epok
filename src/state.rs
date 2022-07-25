@@ -8,7 +8,6 @@ pub type Interface = String;
 
 #[derive(Clone, Default, Debug)]
 pub struct State {
-    pub interfaces: Vec<Interface>,
     pub resources: BTreeSet<Resource>,
 }
 
@@ -23,7 +22,6 @@ impl Sub for &State {
 
     fn sub(self, rhs: Self) -> Self::Output {
         State {
-            interfaces: self.interfaces.clone(),
             resources: &self.resources - &rhs.resources,
         }
     }
@@ -34,10 +32,6 @@ impl State {
         let added = self - prev_state;
         let removed = prev_state - self;
         (added, removed)
-    }
-
-    pub fn with_interfaces(self, interfaces: Vec<Interface>) -> Self {
-        Self { interfaces, ..self }
     }
 
     pub fn with<R: 'static>(self, other: impl IntoIterator<Item = R>) -> Self
@@ -51,7 +45,7 @@ impl State {
             .filter(|r| r.type_id() != r_type)
             .merge(other.into_iter().map(Resource::from))
             .collect();
-        Self { resources, ..self }
+        Self { resources }
     }
 
     pub fn get<R: 'static>(&self) -> BTreeSet<R>

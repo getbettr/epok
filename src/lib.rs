@@ -29,8 +29,8 @@ pub use executor::*;
 pub use iptables::*;
 pub use logging::*;
 pub use operator::*;
-pub use res::{ExternalPort, Node, Resource, Service};
-pub use state::{Interface, Op, Ops, State};
+pub use res::{ExternalPort, Interface, Node, Resource, Service};
+pub use state::{Op, Ops, State};
 
 pub use k8s_openapi::api::core::v1::{Node as CoreNode, Service as CoreService};
 

@@ -4,8 +4,6 @@ use std::{any::TypeId, collections::BTreeSet, ops::Sub, vec::IntoIter};
 
 use crate::*;
 
-pub type Interface = String;
-
 #[derive(Clone, Default, Debug)]
 pub struct State {
     pub resources: BTreeSet<Resource>,

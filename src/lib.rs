@@ -4,6 +4,7 @@ use tokio::time::Duration;
 
 pub mod batch;
 pub mod cli;
+pub mod debounce;
 pub mod executor;
 pub mod iptables;
 pub mod logging;
@@ -37,6 +38,6 @@ pub const ANNOTATION: &str = "epok.getbetter.ro/externalport";
 pub const NODE_EXCLUDE_ANNOTATION: &str = "epok.getbetter.ro/exclude";
 pub const NODE_EXCLUDE_LABEL: &str = "epok_exclude";
 pub const DEBOUNCE_TIMEOUT: Duration = Duration::from_millis(100);
-pub const MAX_OP_QUEUE_SIZE: usize = 64;
+pub const OP_CHANNEL_SIZE: usize = 64;
 pub const RULE_MARKER: &str = "epok_rule_id";
 pub const SERVICE_MARKER: &str = "epok_service_id";

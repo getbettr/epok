@@ -68,7 +68,6 @@ impl<B: Backend> Operator<B> {
 
     pub fn reconcile(&self, state: &State, prev_state: &State) -> Result {
         let (added, removed) = state.diff(prev_state);
-        let mut backend = self.backend.borrow_mut();
         if added.is_empty() && removed.is_empty() {
             return Ok(());
         }
@@ -76,16 +75,17 @@ impl<B: Backend> Operator<B> {
         info!("added state: {:?}", &added);
         info!("removed state: {:?}", &removed);
 
+        let mut backend = self.backend.borrow_mut();
         backend.read_state();
 
         // Case 1: same node set
-        if state.nodes == prev_state.nodes {
-            let removed_service_ids = make_rules(&removed.with_nodes(state.nodes.clone()))
+        if state.get::<Node>() == prev_state.get::<Node>() {
+            let removed_service_ids = make_rules(&removed.with(state.get::<Node>()))
                 .iter()
                 .map(|rule| rule.service_id())
                 .collect::<Vec<_>>();
 
-            backend.apply_rules(make_rules(&added.with_nodes(state.nodes.clone())).into_iter())?;
+            backend.apply_rules(make_rules(&added.with(state.get::<Node>())).into_iter())?;
 
             return backend.delete_rules(|&rule| {
                 removed_service_ids
@@ -119,10 +119,10 @@ impl<B: Backend> Operator<B> {
 }
 
 fn make_rules(state: &State) -> Vec<Rule> {
-    let num_nodes = state.nodes.len();
+    let num_nodes = state.get::<Node>().len();
     iproduct!(
-        state.nodes.iter().enumerate(),
-        &state.services,
+        state.get::<Node>().iter().enumerate(),
+        &state.get::<Service>(),
         &state.interfaces
     )
     .map(|((node_index, node), service, interface)| Rule {
@@ -191,12 +191,10 @@ mod tests {
 
         let state0 = empty_state();
 
-        let state1 = state0
-            .clone()
-            .with_services([service_with_ep(ExternalPort::Spec {
-                host_port: 123,
-                node_port: 456,
-            })]);
+        let state1 = state0.clone().with([service_with_ep(ExternalPort::Spec {
+            host_port: 123,
+            node_port: 456,
+        })]);
         operator.reconcile(&state1, &state0).unwrap();
 
         let rules = operator.get_rules();
@@ -209,12 +207,10 @@ mod tests {
             }
         );
 
-        let state2 = state1
-            .clone()
-            .with_services([service_with_ep(ExternalPort::Spec {
-                host_port: 1234,
-                node_port: 456,
-            })]);
+        let state2 = state1.clone().with([service_with_ep(ExternalPort::Spec {
+            host_port: 1234,
+            node_port: 456,
+        })]);
         operator.reconcile(&state2, &state1).unwrap();
 
         let rules = operator.get_rules();
@@ -235,15 +231,13 @@ mod tests {
 
         let state0 = empty_state();
 
-        let state1 = state0
-            .clone()
-            .with_services([service_with_ep(ExternalPort::Spec {
-                host_port: 123,
-                node_port: 456,
-            })]);
+        let state1 = state0.clone().with([service_with_ep(ExternalPort::Spec {
+            host_port: 123,
+            node_port: 456,
+        })]);
         operator.reconcile(&state1, &state0).unwrap();
 
-        let state2 = state1.clone().with_nodes([]);
+        let state2 = state1.clone().with(Vec::<Node>::new());
         operator.reconcile(&state2, &state1).unwrap();
 
         let rules = operator.get_rules();
@@ -256,7 +250,7 @@ mod tests {
         let operator = Operator::new(backend);
 
         let state0 = empty_state();
-        let state1 = state0.clone().with_services([
+        let state1 = state0.clone().with([
             service_with_ep(ExternalPort::Spec {
                 host_port: 123,
                 node_port: 456,
@@ -271,7 +265,7 @@ mod tests {
         // add a node, remove a service
         let state2 = state1
             .clone()
-            .with_nodes([
+            .with([
                 Node {
                     name: "foo".to_string(),
                     addr: "bar".to_string(),
@@ -283,7 +277,7 @@ mod tests {
                     is_active: true,
                 },
             ])
-            .with_services([service_with_ep(ExternalPort::Spec {
+            .with([service_with_ep(ExternalPort::Spec {
                 host_port: 789,
                 node_port: 654,
             })]);
@@ -303,7 +297,7 @@ mod tests {
         let backend = TestBackend::default();
         let operator = Operator::new(backend);
 
-        let state0 = empty_state().with_services([service_with_ep(ExternalPort::Spec {
+        let state0 = empty_state().with([service_with_ep(ExternalPort::Spec {
             host_port: 123,
             node_port: 456,
         })]);
@@ -319,7 +313,7 @@ mod tests {
             }
         );
 
-        let state1 = state0.clone().with_services([]);
+        let state1 = state0.clone().with(Vec::<Node>::new());
         operator.reconcile(&state1, &state0).unwrap();
 
         let rules = operator.get_rules();
@@ -329,7 +323,7 @@ mod tests {
     fn empty_state() -> State {
         State::default()
             .with_interfaces(vec!["eth0".to_owned()])
-            .with_nodes([Node {
+            .with([Node {
                 name: "foo".to_string(),
                 addr: "bar".to_string(),
                 is_active: true,

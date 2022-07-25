@@ -1,5 +1,6 @@
+use itertools::Itertools;
 use kube::runtime::watcher::Event;
-use std::{collections::BTreeSet, ops::Sub, vec::IntoIter};
+use std::{any::TypeId, collections::BTreeSet, ops::Sub, vec::IntoIter};
 
 use crate::*;
 
@@ -8,13 +9,12 @@ pub type Interface = String;
 #[derive(Clone, Default, Debug)]
 pub struct State {
     pub interfaces: Vec<Interface>,
-    pub services: BTreeSet<Service>,
-    pub nodes: BTreeSet<Node>,
+    pub resources: BTreeSet<Resource>,
 }
 
 impl State {
     pub fn is_empty(&self) -> bool {
-        self.services.is_empty() && self.nodes.is_empty()
+        self.resources.is_empty()
     }
 }
 
@@ -24,8 +24,7 @@ impl Sub for &State {
     fn sub(self, rhs: Self) -> Self::Output {
         State {
             interfaces: self.interfaces.clone(),
-            services: &self.services - &rhs.services,
-            nodes: &self.nodes - &rhs.nodes,
+            resources: &self.resources - &rhs.resources,
         }
     }
 }
@@ -41,44 +40,36 @@ impl State {
         Self { interfaces, ..self }
     }
 
-    pub fn with_nodes(self, nodes: impl IntoIterator<Item = Node>) -> Self {
-        Self {
-            nodes: nodes.into_iter().collect(),
-            ..self
-        }
+    pub fn with<R: 'static>(self, other: impl IntoIterator<Item = R>) -> Self
+    where
+        Resource: From<R>,
+    {
+        let r_type = TypeId::of::<R>();
+        let resources = self
+            .resources
+            .into_iter()
+            .filter(|r| r.type_id() != r_type)
+            .merge(other.into_iter().map(Resource::from))
+            .collect();
+        Self { resources, ..self }
     }
 
-    pub fn with_services(self, services: impl IntoIterator<Item = Service>) -> Self {
-        Self {
-            services: services.into_iter().collect(),
-            ..self
-        }
+    pub fn get<R: 'static>(&self) -> BTreeSet<R>
+    where
+        R: TryFrom<Resource> + Ord,
+    {
+        self.resources
+            .clone()
+            .into_iter()
+            .flat_map(R::try_from)
+            .collect()
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Op {
-    NodeAdd(Node),
-    NodeRemove(String),
-    ServiceAdd(Service),
-    ServiceRemove(String),
-}
-
-impl Op {
-    pub fn apply(&self, state: &mut State) {
-        match self {
-            Op::NodeAdd(node) => {
-                state.nodes.insert(node.to_owned());
-            }
-            Op::NodeRemove(node_name) => state.nodes.retain(|x| &x.name != node_name),
-            Op::ServiceAdd(service) => {
-                state.services.insert(service.to_owned());
-            }
-            Op::ServiceRemove(svc_fqn) => {
-                state.services.retain(|s| &s.fqn() != svc_fqn);
-            }
-        }
-    }
+    ResourceAdd(Resource),
+    ResourceRemove(String),
 }
 
 pub struct Ops(pub Vec<Op>);
@@ -92,47 +83,41 @@ impl IntoIterator for Ops {
     }
 }
 
-impl From<Event<CoreService>> for Ops {
-    fn from(event: Event<CoreService>) -> Self {
-        let ops = match event {
-            Event::Applied(obj) => Service::try_from(&obj).map(|svc| {
-                let mut ret = vec![Op::ServiceRemove(svc.fqn())];
-                if svc.has_external_port() {
-                    ret.push(Op::ServiceAdd(svc))
-                }
-                ret
-            }),
-            Event::Restarted(objs) => Ok(objs
-                .iter()
-                .filter_map(|o| Service::try_from(o).ok())
-                .filter(Service::has_external_port)
-                .map(Op::ServiceAdd)
-                .collect()),
-            Event::Deleted(obj) => {
-                Service::try_from(&obj).map(|svc| vec![Op::ServiceRemove(svc.fqn())])
+impl Op {
+    pub fn apply(&self, state: &mut State) {
+        match self {
+            Op::ResourceAdd(res) => {
+                state.resources.insert(res.to_owned());
             }
-        };
-        Ops(ops.unwrap_or_default())
+            Op::ResourceRemove(res_id) => {
+                state.resources.retain(|res| res.id() != *res_id);
+            }
+        }
     }
 }
 
-impl From<Event<CoreNode>> for Ops {
-    fn from(event: Event<CoreNode>) -> Self {
+impl<C> From<Event<C>> for Ops
+where
+    Resource: TryFrom<C>,
+{
+    fn from(event: Event<C>) -> Self {
         let ops = match event {
-            Event::Applied(obj) => Node::try_from(&obj).map(|node| {
-                let mut ret = vec![Op::NodeRemove(node.name.to_owned())];
-                if node.is_active {
-                    ret.push(Op::NodeAdd(node));
+            Event::Applied(obj) => Resource::try_from(obj).map(|res| {
+                let mut ret = vec![Op::ResourceRemove(res.id())];
+                if res.is_active() {
+                    ret.push(Op::ResourceAdd(res))
                 }
                 ret
             }),
             Event::Restarted(objs) => Ok(objs
-                .iter()
-                .filter_map(|o| Node::try_from(o).ok())
-                .filter(|n| n.is_active)
-                .map(Op::NodeAdd)
+                .into_iter()
+                .filter_map(|o| Resource::try_from(o).ok())
+                .filter(Resource::is_active)
+                .map(Op::ResourceAdd)
                 .collect()),
-            Event::Deleted(obj) => Node::try_from(&obj).map(|node| vec![Op::NodeRemove(node.name)]),
+            Event::Deleted(obj) => {
+                Resource::try_from(obj).map(|res| vec![Op::ResourceRemove(res.id())])
+            }
         };
         Ops(ops.unwrap_or_default())
     }

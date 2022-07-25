@@ -1,10 +1,71 @@
-use std::str::FromStr;
+use std::{any::TypeId, str::FromStr};
 
 use anyhow::{anyhow, Context};
 use k8s_openapi::api::core::v1::NodeStatus;
 use kube::ResourceExt;
 
 use crate::*;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Resource {
+    Node(Node),
+    Service(Service),
+}
+
+impl Resource {
+    pub fn id(&self) -> String {
+        match self {
+            Resource::Node(n) => n.name.to_owned(),
+            Resource::Service(s) => s.fqn(),
+        }
+    }
+
+    pub fn type_id(&self) -> TypeId {
+        match self {
+            Resource::Node(_) => TypeId::of::<Node>(),
+            Resource::Service(_) => TypeId::of::<Service>(),
+        }
+    }
+
+    pub fn is_active(&self) -> bool {
+        match self {
+            Resource::Node(n) => n.is_active,
+            Resource::Service(s) => s.has_external_port(),
+        }
+    }
+}
+
+impl TryFrom<CoreService> for Resource {
+    type Error = anyhow::Error;
+
+    fn try_from(cs: CoreService) -> Result<Self, Self::Error> {
+        Ok(Service {
+            external_port: ExternalPort::try_from(cs.clone())?,
+            name: cs.name_any(),
+            namespace: cs.namespace().unwrap_or_default(),
+        }
+        .into())
+    }
+}
+
+impl TryFrom<CoreNode> for Resource {
+    type Error = anyhow::Error;
+
+    fn try_from(cn: CoreNode) -> Result<Self, Self::Error> {
+        let status = cn.status.clone().unwrap_or_default();
+        let addr = node_ip(status.clone())?;
+        let is_active = node_ready(status)
+            && !cn.annotations().contains_key(NODE_EXCLUDE_ANNOTATION)
+            && !cn.labels().contains_key(NODE_EXCLUDE_LABEL);
+
+        Ok(Node {
+            name: cn.name_any(),
+            addr,
+            is_active,
+        }
+        .into())
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Service {
@@ -33,15 +94,20 @@ impl Service {
     }
 }
 
-impl TryFrom<&CoreService> for Service {
-    type Error = anyhow::Error;
+impl From<Service> for Resource {
+    fn from(s: Service) -> Self {
+        Self::Service(s)
+    }
+}
 
-    fn try_from(cs: &CoreService) -> Result<Self, Self::Error> {
-        Ok(Service {
-            external_port: ExternalPort::try_from(cs)?,
-            name: cs.name_any(),
-            namespace: cs.namespace().unwrap_or_default(),
-        })
+impl TryFrom<Resource> for Service {
+    type Error = ();
+
+    fn try_from(res: Resource) -> Result<Self, Self::Error> {
+        match res {
+            Resource::Service(s) => Ok(s),
+            _ => Err(()),
+        }
     }
 }
 
@@ -51,10 +117,10 @@ pub enum ExternalPort {
     Absent,
 }
 
-impl TryFrom<&CoreService> for ExternalPort {
+impl TryFrom<CoreService> for ExternalPort {
     type Error = anyhow::Error;
 
-    fn try_from(cs: &CoreService) -> Result<Self, Self::Error> {
+    fn try_from(cs: CoreService) -> Result<Self, Self::Error> {
         let anno = cs.annotations();
         if anno.contains_key(ANNOTATION) {
             return ExternalPort::from_str(&anno[ANNOTATION]);
@@ -85,21 +151,20 @@ pub struct Node {
     pub is_active: bool,
 }
 
-impl TryFrom<&CoreNode> for Node {
-    type Error = anyhow::Error;
+impl From<Node> for Resource {
+    fn from(n: Node) -> Self {
+        Resource::Node(n)
+    }
+}
 
-    fn try_from(cn: &CoreNode) -> Result<Self, Self::Error> {
-        let status = cn.status.clone().unwrap_or_default();
-        let addr = node_ip(status.clone())?;
-        let is_active = node_ready(status)
-            && !cn.annotations().contains_key(NODE_EXCLUDE_ANNOTATION)
-            && !cn.labels().contains_key(NODE_EXCLUDE_LABEL);
+impl TryFrom<Resource> for Node {
+    type Error = ();
 
-        Ok(Self {
-            name: cn.name_any(),
-            addr,
-            is_active,
-        })
+    fn try_from(res: Resource) -> Result<Self, Self::Error> {
+        match res {
+            Resource::Node(n) => Ok(n),
+            _ => Err(()),
+        }
     }
 }
 

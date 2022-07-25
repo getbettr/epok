@@ -65,20 +65,20 @@ async fn main() -> anyhow::Result<()> {
     )
     .for_each(|event| process_event(event, &op_sender));
 
-    let debouncer = Debounce::new(ReceiverStream::new(op_receiver), DEBOUNCE_TIMEOUT).for_each(
-        |mut op_queue| async move {
+    let debouncer = Debounce::new(ReceiverStream::new(op_receiver), OP_DEBOUNCE_TIMEOUT)
+        .with_capacity(OP_DEBOUNCE_CAPACITY)
+        .for_each(|mut op_batch| async move {
             let mut app = app.lock().await;
 
             let prev_state = app.state.clone();
-            while let Some(op) = op_queue.pop_front() {
+            while let Some(op) = op_batch.pop_front() {
                 op.apply(&mut app.state);
             }
 
             if let Err(e) = app.operator.reconcile(&app.state, &prev_state) {
                 warn!("error during reconcile: {:?}", e)
             }
-        },
-    );
+        });
 
     select! {
         _ = service_watcher => warn!("service watcher exited"),

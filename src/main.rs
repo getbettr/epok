@@ -19,7 +19,7 @@ use tokio::{
 };
 use tokio_stream::wrappers::ReceiverStream;
 
-use epok::{debounce::Debounce, *};
+use epok::*;
 
 struct App<B: Backend> {
     state: State,

@@ -2,7 +2,7 @@ use itertools::Itertools;
 use kube::runtime::watcher::Event;
 use std::{any::TypeId, collections::BTreeSet, ops::Sub, vec::IntoIter};
 
-use crate::*;
+use crate::{Resource, ResourceLike};
 
 #[derive(Clone, Default, Debug)]
 pub struct State {
@@ -50,7 +50,7 @@ impl State {
     pub fn get<R: 'static>(&self) -> BTreeSet<R>
     where
         Resource: TryInto<R>,
-        R: Ord,
+        R: ResourceLike + Ord,
     {
         self.resources
             .clone()

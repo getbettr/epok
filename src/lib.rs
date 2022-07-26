@@ -23,12 +23,12 @@ lazy_static! {
     };
 }
 
-pub use batch::*;
-pub use cli::*;
-pub use executor::*;
-pub use iptables::*;
+pub use batch::Batch;
+pub use cli::{BatchOpts, Executor, Opts, SshHost};
+pub use debounce::Debounce;
+pub use iptables::IptablesBackend;
 pub use logging::*;
-pub use operator::*;
+pub use operator::{Backend, Operator, Rule};
 pub use res::{ExternalPort, Interface, Node, Resource, ResourceLike, Service};
 pub use state::{Op, Ops, State};
 

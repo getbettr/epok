@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use std::cmp::Reverse;
 
-use crate::*;
+use crate::{Backend, BatchOpts, Executor, Rule, RULE_MARKER, SERVICE_MARKER};
 
 type Result = anyhow::Result<()>;
 

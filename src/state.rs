@@ -35,12 +35,13 @@ impl State {
     pub fn with<R: 'static>(self, other: impl IntoIterator<Item = R>) -> Self
     where
         Resource: From<R>,
+        R: ResourceLike,
     {
         let r_type = TypeId::of::<R>();
         let resources = self
             .resources
             .into_iter()
-            .filter(|r| r.type_id() != r_type)
+            .filter(|r| ResourceLike::type_id(r) != r_type)
             .merge(other.into_iter().map(Resource::from))
             .collect();
         Self { resources }
@@ -48,12 +49,13 @@ impl State {
 
     pub fn get<R: 'static>(&self) -> BTreeSet<R>
     where
-        R: TryFrom<Resource> + Ord,
+        Resource: TryInto<R>,
+        R: Ord,
     {
         self.resources
             .clone()
             .into_iter()
-            .flat_map(R::try_from)
+            .flat_map(Resource::try_into)
             .collect()
     }
 }

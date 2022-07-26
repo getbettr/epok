@@ -109,6 +109,7 @@ mod tests {
     async fn should_give_up() {
         tokio::time::pause();
         let rx = stream::empty::<()>();
+
         let deb = Debounce::new(rx, Duration::from_millis(100));
         pin_mut!(deb);
 

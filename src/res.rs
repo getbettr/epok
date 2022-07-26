@@ -1,42 +1,25 @@
 use std::{any::TypeId, str::FromStr};
 
 use anyhow::{anyhow, Context};
+use enum_dispatch::enum_dispatch;
 use k8s_openapi::api::core::v1::NodeStatus;
 use kube::ResourceExt;
 
 use crate::*;
 
+#[enum_dispatch]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Resource {
-    Interface(Interface),
-    Node(Node),
-    Service(Service),
+    Interface,
+    Node,
+    Service,
 }
 
-impl Resource {
-    pub fn id(&self) -> String {
-        match self {
-            Resource::Interface(i) => i.to_owned(),
-            Resource::Node(n) => n.name.to_owned(),
-            Resource::Service(s) => s.fqn(),
-        }
-    }
-
-    pub fn type_id(&self) -> TypeId {
-        match self {
-            Resource::Interface(_) => TypeId::of::<Interface>(),
-            Resource::Node(_) => TypeId::of::<Node>(),
-            Resource::Service(_) => TypeId::of::<Service>(),
-        }
-    }
-
-    pub fn is_active(&self) -> bool {
-        match self {
-            Resource::Interface(_) => true,
-            Resource::Node(n) => n.is_active,
-            Resource::Service(s) => s.has_external_port(),
-        }
-    }
+#[enum_dispatch(Resource)]
+pub trait ResourceLike {
+    fn id(&self) -> String;
+    fn type_id(&self) -> TypeId;
+    fn is_active(&self) -> bool;
 }
 
 impl TryFrom<CoreService> for Resource {
@@ -73,20 +56,17 @@ impl TryFrom<CoreNode> for Resource {
 
 pub type Interface = String;
 
-impl From<Interface> for Resource {
-    fn from(i: Interface) -> Self {
-        Self::Interface(i)
+impl ResourceLike for Interface {
+    fn id(&self) -> String {
+        self.to_owned()
     }
-}
 
-impl TryFrom<Resource> for Interface {
-    type Error = ();
+    fn type_id(&self) -> TypeId {
+        TypeId::of::<Interface>()
+    }
 
-    fn try_from(res: Resource) -> Result<Self, Self::Error> {
-        match res {
-            Resource::Interface(i) => Ok(i),
-            _ => Err(()),
-        }
+    fn is_active(&self) -> bool {
+        true
     }
 }
 
@@ -117,20 +97,17 @@ impl Service {
     }
 }
 
-impl From<Service> for Resource {
-    fn from(s: Service) -> Self {
-        Self::Service(s)
+impl ResourceLike for Service {
+    fn id(&self) -> String {
+        self.fqn()
     }
-}
 
-impl TryFrom<Resource> for Service {
-    type Error = ();
+    fn type_id(&self) -> TypeId {
+        TypeId::of::<Service>()
+    }
 
-    fn try_from(res: Resource) -> Result<Self, Self::Error> {
-        match res {
-            Resource::Service(s) => Ok(s),
-            _ => Err(()),
-        }
+    fn is_active(&self) -> bool {
+        self.has_external_port()
     }
 }
 
@@ -174,20 +151,17 @@ pub struct Node {
     pub is_active: bool,
 }
 
-impl From<Node> for Resource {
-    fn from(n: Node) -> Self {
-        Resource::Node(n)
+impl ResourceLike for Node {
+    fn id(&self) -> String {
+        self.name.to_owned()
     }
-}
 
-impl TryFrom<Resource> for Node {
-    type Error = ();
+    fn type_id(&self) -> TypeId {
+        TypeId::of::<Node>()
+    }
 
-    fn try_from(res: Resource) -> Result<Self, Self::Error> {
-        match res {
-            Resource::Node(n) => Ok(n),
-            _ => Err(()),
-        }
+    fn is_active(&self) -> bool {
+        self.is_active
     }
 }
 

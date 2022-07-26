@@ -62,13 +62,11 @@ async fn main() -> anyhow::Result<()> {
 
     let debouncer = Debounce::new(ReceiverStream::new(op_receiver), OP_DEBOUNCE_TIMEOUT)
         .with_capacity(OP_DEBOUNCE_CAPACITY)
-        .for_each(|mut op_batch| async move {
+        .for_each(|op_batch| async move {
             let mut app = app.lock().await;
 
             let prev_state = app.state.clone();
-            while let Some(op) = op_batch.pop_front() {
-                op.apply(&mut app.state);
-            }
+            apply(op_batch, &mut app.state);
 
             if let Err(e) = app.operator.reconcile(&app.state, &prev_state) {
                 warn!("error during reconcile: {:?}", e)

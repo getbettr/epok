@@ -30,7 +30,7 @@ pub use iptables::IptablesBackend;
 pub use logging::*;
 pub use operator::{Backend, Operator, Rule};
 pub use res::{ExternalPort, Interface, Node, Resource, ResourceLike, Service};
-pub use state::{Op, Ops, State};
+pub use state::{apply, Op, Ops, State};
 
 pub use k8s_openapi::api::core::v1::{Node as CoreNode, Service as CoreService};
 

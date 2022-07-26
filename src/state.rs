@@ -4,7 +4,7 @@ use std::{any::TypeId, collections::BTreeSet, ops::Sub, vec::IntoIter};
 
 use crate::{Resource, ResourceLike};
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
 pub struct State {
     resources: BTreeSet<Resource>,
 }
@@ -13,19 +13,7 @@ impl State {
     pub fn is_empty(&self) -> bool {
         self.resources.is_empty()
     }
-}
 
-impl Sub for &State {
-    type Output = State;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        State {
-            resources: &self.resources - &rhs.resources,
-        }
-    }
-}
-
-impl State {
     pub fn diff(&self, prev_state: &Self) -> (Self, Self) {
         let added = self - prev_state;
         let removed = prev_state - self;
@@ -57,6 +45,25 @@ impl State {
             .into_iter()
             .flat_map(Resource::try_into)
             .collect()
+    }
+}
+
+impl Sub for &State {
+    type Output = State;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        State {
+            resources: &self.resources - &rhs.resources,
+        }
+    }
+}
+
+pub fn apply<I>(ops: I, state: &mut State)
+where
+    I: IntoIterator<Item = Op>,
+{
+    for op in ops.into_iter() {
+        op.apply(state);
     }
 }
 
@@ -114,5 +121,126 @@ where
             }
         };
         Ops(ops.unwrap_or_default())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{ExternalPort, Node, Service};
+
+    #[test]
+    fn apply_one() {
+        let svc = Service {
+            name: "foo".into(),
+            namespace: "bar".into(),
+            external_port: ExternalPort::Spec {
+                host_port: 123,
+                node_port: 456,
+            },
+        };
+        let mut state = State::default();
+
+        let ops = Ops::from(Event::Applied(svc.clone()));
+        apply(ops, &mut state);
+
+        assert!(!state.is_empty());
+        assert!(state.get::<Service>().contains(&svc));
+    }
+
+    #[test]
+    fn apply_remove_one() {
+        let svc = Service {
+            name: "foo".into(),
+            namespace: "bar".into(),
+            external_port: ExternalPort::Spec {
+                host_port: 123,
+                node_port: 456,
+            },
+        };
+        let mut state = State::default();
+
+        let ops = Ops::from(Event::Applied(svc.clone()))
+            .into_iter()
+            .chain(Ops::from(Event::Deleted(svc)));
+        apply(ops, &mut state);
+
+        assert!(state.is_empty());
+    }
+
+    #[test]
+    fn restart_many_apply_one() {
+        let svcs = vec![
+            Service {
+                name: "foo".into(),
+                namespace: "bar".into(),
+                external_port: ExternalPort::Spec {
+                    host_port: 123,
+                    node_port: 456,
+                },
+            },
+            Service {
+                name: "baz".into(),
+                namespace: "quux".into(),
+                external_port: ExternalPort::Spec {
+                    host_port: 12321,
+                    node_port: 45654,
+                },
+            },
+        ];
+
+        let applied = Service {
+            name: "foo".into(),
+            namespace: "bar".into(),
+            external_port: ExternalPort::Spec {
+                host_port: 333,
+                node_port: 444,
+            },
+        };
+        let mut state = State::default();
+
+        let ops = Ops::from(Event::Restarted(svcs.clone()))
+            .into_iter()
+            .chain(Ops::from(Event::Applied(applied.clone())));
+        apply(ops, &mut state);
+
+        assert!(!state.is_empty());
+        assert!(!state.get::<Service>().contains(&svcs[0]));
+        assert!(state.get::<Service>().contains(&applied));
+    }
+
+    #[test]
+    fn with_diff() {
+        let svc1 = Service {
+            name: "foo".into(),
+            namespace: "bar".into(),
+            external_port: ExternalPort::Spec {
+                host_port: 333,
+                node_port: 444,
+            },
+        };
+
+        let svc2 = Service {
+            name: "foo".into(),
+            namespace: "bar".into(),
+            external_port: ExternalPort::Spec {
+                host_port: 123,
+                node_port: 321,
+            },
+        };
+
+        let node1 = Node {
+            name: "node0".into(),
+            addr: "1.2.3.4".into(),
+            is_active: true,
+        };
+
+        let prev = State::default().with([node1.clone()]).with([svc1.clone()]);
+
+        let cur = prev.clone().with([svc2.clone()]).with(Vec::<Node>::new());
+
+        let (added, removed) = cur.diff(&prev);
+        assert_eq!(added, State::default().with([svc2]));
+        assert_eq!(removed, State::default().with([svc1]).with([node1]));
     }
 }

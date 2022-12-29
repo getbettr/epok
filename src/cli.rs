@@ -37,7 +37,7 @@ pub struct BatchOpts {
     pub batch_commands: bool,
 
     /// Maximum command batch size
-    #[clap(long, env = "EPOK_BATCH_SIZE", default_value = &ARG_MAX)]
+    #[clap(long, env = "EPOK_BATCH_SIZE", default_value = &**ARG_MAX)]
     pub batch_size: usize,
 }
 

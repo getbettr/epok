@@ -35,7 +35,7 @@ impl State {
         Self { resources }
     }
 
-    pub fn get<R: 'static>(&self) -> BTreeSet<R>
+    pub fn get<R>(&self) -> BTreeSet<R>
     where
         Resource: TryInto<R>,
         R: ResourceLike + Ord,

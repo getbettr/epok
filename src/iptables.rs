@@ -63,11 +63,15 @@ fn append_to_delete(rule: &str) -> String {
 
 fn iptables_statements(rule: &Rule, local_ip: &Option<String>) -> Vec<String> {
     let (host_port, node_port) = rule.service.get_ports().expect("invalid service");
-
+    let d_ip = match local_ip {
+        None => "".to_owned(),
+        Some(ip) => format!("-d {ip}", ip = ip),
+    };
     let input = format!(
-        "-i {interface} -p tcp --dport {host_port} -m state --state NEW",
+        "-i {interface} -p tcp {d_ip} --dport {host_port} -m state --state NEW",
         interface = rule.interface,
         host_port = host_port,
+        d_ip = d_ip,
     );
     let balance = match rule.node_index {
         i if i == 0 => "".to_owned(),

@@ -35,7 +35,11 @@ async fn main() -> anyhow::Result<()> {
 
     let app = &Arc::new(Mutex::new(App {
         state: State::default().with(opts.interfaces.split(',').map(Interface::from)),
-        operator: Operator::new(IptablesBackend::new(opts.executor, opts.batch_opts)),
+        operator: Operator::new(IptablesBackend::new(
+            opts.executor,
+            opts.batch_opts,
+            opts.local_ip,
+        )),
     }));
 
     let kube_client = Client::try_default().await?;
@@ -77,7 +81,7 @@ async fn main() -> anyhow::Result<()> {
         _ = service_watcher => warn!("service watcher exited"),
         _ = node_watcher => warn!("node watcher exited"),
         _ = debouncer => warn!("debouncer exited"),
-    };
+    }
     Ok(())
 }
 

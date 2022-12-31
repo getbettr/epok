@@ -9,6 +9,7 @@ pub struct IptablesBackend {
     executor: Executor,
     batch_opts: BatchOpts,
     rule_state: String,
+    local_ip: Option<String>,
 }
 
 impl Backend for IptablesBackend {
@@ -25,7 +26,8 @@ impl Backend for IptablesBackend {
                 .into_iter()
                 .filter(|rule| !self.rule_state.contains(&rule.rule_id()))
                 .sorted_unstable_by_key(|r| Reverse(r.node_index))
-                .map(|rule| format!("sudo iptables -w -t nat -A {}", iptables_args(&rule))),
+                .flat_map(|rule| iptables_statements(&rule, &self.local_ip))
+                .map(|statement| format!("sudo iptables -w -t nat -A {}", statement)),
             &self.batch_opts,
         )?;
         Ok(())
@@ -43,11 +45,12 @@ impl Backend for IptablesBackend {
 }
 
 impl IptablesBackend {
-    pub fn new(executor: Executor, batch_opts: BatchOpts) -> Self {
+    pub fn new(executor: Executor, batch_opts: BatchOpts, local_ip: Option<String>) -> Self {
         Self {
             executor,
             batch_opts,
             rule_state: Default::default(),
+            local_ip,
         }
     }
 }
@@ -58,7 +61,7 @@ fn append_to_delete(rule: &str) -> String {
     format!("sudo iptables -w -t nat -D {}", rule_parts.join(" "))
 }
 
-fn iptables_args(rule: &Rule) -> String {
+fn iptables_statements(rule: &Rule, local_ip: &Option<String>) -> Vec<String> {
     let (host_port, node_port) = rule.service.get_ports().expect("invalid service");
 
     let input = format!(
@@ -84,11 +87,27 @@ fn iptables_args(rule: &Rule) -> String {
         node_addr = rule.node.addr,
         node_port = node_port,
     );
-    format!(
+    let mut ret = Vec::new();
+    if let Some(local_ip) = local_ip {
+        let local = format!(
+            "-o lo -p tcp -d {local_ip} --dport {host_port}",
+            local_ip = local_ip,
+            host_port = host_port,
+        );
+        ret.push(format!(
+            "OUTPUT {local} {balance} {comment} {jump}",
+            local = local,
+            balance = balance,
+            comment = comment,
+            jump = jump,
+        ))
+    }
+    ret.push(format!(
         "PREROUTING {input} {balance} {comment} {jump}",
         input = input,
         balance = balance,
         comment = comment,
         jump = jump,
-    )
+    ));
+    ret
 }

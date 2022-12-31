@@ -23,6 +23,9 @@ pub struct Opts {
     )]
     pub interfaces: String,
 
+    #[clap(long, env = "EPOK_LOCAL_IP")]
+    pub local_ip: Option<String>,
+
     #[clap(flatten)]
     pub batch_opts: BatchOpts,
 

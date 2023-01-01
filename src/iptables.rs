@@ -70,48 +70,27 @@ fn iptables_statements(rule: &Rule, local_ip: &Option<String>) -> Vec<String> {
     let input = format!(
         "-i {interface} -p tcp {d_ip} --dport {host_port} -m state --state NEW",
         interface = rule.interface,
-        host_port = host_port,
-        d_ip = d_ip,
     );
     let balance = match rule.node_index {
         i if i == 0 => "".to_owned(),
         i => format!("-m statistic --mode nth --every {} --packet 0", i + 1),
     };
     let comment = format!(
-        "-m comment --comment 'service: {}; node: {}; {}: {}; {}: {}'",
+        "-m comment --comment 'service: {}; node: {}; {RULE_MARKER}: {}; {SERVICE_MARKER}: {}'",
         rule.service.fqn(),
         rule.node.name,
-        RULE_MARKER,
         rule.rule_id(),
-        SERVICE_MARKER,
         rule.service_id(),
     );
     let jump = format!(
         "-j DNAT --to-destination {node_addr}:{node_port}",
         node_addr = rule.node.addr,
-        node_port = node_port,
     );
     let mut ret = Vec::new();
+    ret.push(format!("PREROUTING {input} {balance} {comment} {jump}",));
     if let Some(local_ip) = local_ip {
-        let local = format!(
-            "-o lo -p tcp -d {local_ip} --dport {host_port}",
-            local_ip = local_ip,
-            host_port = host_port,
-        );
-        ret.push(format!(
-            "OUTPUT {local} {balance} {comment} {jump}",
-            local = local,
-            balance = balance,
-            comment = comment,
-            jump = jump,
-        ))
+        let local = format!("-o lo -p tcp -d {local_ip} --dport {host_port}",);
+        ret.push(format!("OUTPUT {local} {balance} {comment} {jump}",))
     }
-    ret.push(format!(
-        "PREROUTING {input} {balance} {comment} {jump}",
-        input = input,
-        balance = balance,
-        comment = comment,
-        jump = jump,
-    ));
     ret
 }

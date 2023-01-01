@@ -33,12 +33,16 @@ async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     debug!("parsed options: {:?}", opts);
 
+    let local_ip = opts
+        .external_interface
+        .map(|iface| get_ip(iface, &opts.executor));
+
     let app = &Arc::new(Mutex::new(App {
         state: State::default().with(opts.interfaces.split(',').map(Interface::from)),
         operator: Operator::new(IptablesBackend::new(
             opts.executor,
             opts.batch_opts,
-            opts.local_ip,
+            local_ip,
         )),
     }));
 
@@ -94,6 +98,15 @@ fn backoff() -> impl Backoff + Send + Sync {
         max_elapsed_time: Some(Duration::from_secs(60)),
         ..ExponentialBackoff::default()
     }
+}
+
+fn get_ip<I: AsRef<str>>(interface: I, executor: &Executor) -> String {
+    let interface = interface.as_ref();
+    executor
+        .run_fun(format!(
+            "ip -f inet addr show {interface} | sed -En -e 's/.*inet ([0-9.]+).*/\\1/p'"
+        ))
+        .unwrap_or_else(|_| panic!("could not get IPv4 address of interface {interface}"))
 }
 
 async fn process_event<T>(ev: Result<Event<T>, WatchError>, tx: &Sender<Op>)

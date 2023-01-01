@@ -26,8 +26,10 @@ impl Backend for IptablesBackend {
                 .into_iter()
                 .filter(|rule| !self.rule_state.contains(&rule.rule_id()))
                 .sorted_unstable_by_key(|r| Reverse(r.node_index))
-                .flat_map(|rule| iptables_statements(&rule, &self.local_ip))
-                .map(|statement| format!("sudo iptables -w -t nat -A {}", statement)),
+                .map(|rule| {
+                    let statement = iptables_statement(&rule, &self.local_ip);
+                    format!("sudo iptables -w -t nat -A {}", statement)
+                }),
             &self.batch_opts,
         )?;
         Ok(())
@@ -61,16 +63,30 @@ fn append_to_delete(rule: &str) -> String {
     format!("sudo iptables -w -t nat -D {}", rule_parts.join(" "))
 }
 
-fn iptables_statements(rule: &Rule, local_ip: &Option<String>) -> Vec<String> {
+fn iptables_statement(rule: &Rule, local_ip: &Option<String>) -> String {
     let (host_port, node_port) = rule.service.get_ports().expect("invalid service");
     let d_ip = match local_ip {
         None => "".to_owned(),
         Some(ip) => format!("-d {ip}", ip = ip),
     };
-    let input = format!(
-        "-i {interface} -p tcp {d_ip} --dport {host_port} -m state --state NEW",
-        interface = rule.interface,
-    );
+    let (chain, selector) = match rule.interface.as_str() {
+        "lo" => (
+            "OUTPUT",
+            format!(
+                "-o lo -p tcp -d {local_ip} --dport {host_port}",
+                local_ip = local_ip
+                    .as_ref()
+                    .expect("should not have a local rule without local IP")
+            ),
+        ),
+        _ => (
+            "PREROUTING",
+            format!(
+                "-i {interface} -p tcp {d_ip} --dport {host_port} -m state --state NEW",
+                interface = rule.interface,
+            ),
+        ),
+    };
     let balance = match rule.node_index {
         i if i == 0 => "".to_owned(),
         i => format!("-m statistic --mode nth --every {} --packet 0", i + 1),
@@ -86,11 +102,5 @@ fn iptables_statements(rule: &Rule, local_ip: &Option<String>) -> Vec<String> {
         "-j DNAT --to-destination {node_addr}:{node_port}",
         node_addr = rule.node.addr,
     );
-    let mut ret = Vec::new();
-    ret.push(format!("PREROUTING {input} {balance} {comment} {jump}",));
-    if let Some(local_ip) = local_ip {
-        let local = format!("-o lo -p tcp -d {local_ip} --dport {host_port}",);
-        ret.push(format!("OUTPUT {local} {balance} {comment} {jump}",))
-    }
-    ret
+    format!("{chain} {selector} {balance} {comment} {jump}")
 }

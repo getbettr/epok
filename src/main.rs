@@ -37,8 +37,18 @@ async fn main() -> anyhow::Result<()> {
         .external_interface
         .map(|iface| get_ip(iface, &opts.executor));
 
+    let mut interfaces = opts
+        .interfaces
+        .split(',')
+        .map(Interface::from)
+        .collect::<Vec<_>>();
+
+    if local_ip.is_some() {
+        interfaces.push(Interface::from("lo"));
+    }
+
     let app = &Arc::new(Mutex::new(App {
-        state: State::default().with(opts.interfaces.split(',').map(Interface::from)),
+        state: State::default().with(interfaces),
         operator: Operator::new(IptablesBackend::new(
             opts.executor,
             opts.batch_opts,

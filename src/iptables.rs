@@ -73,7 +73,7 @@ fn iptables_statement(rule: &Rule, local_ip: &Option<String>) -> String {
         "lo" => (
             "OUTPUT",
             format!(
-                "-o lo -p tcp -d {local_ip} --dport {host_port}",
+                "-o lo -p tcp -d {local_ip} --dport {host_port} -m state --state NEW",
                 local_ip = local_ip
                     .as_ref()
                     .expect("should not have a local rule without local IP")

@@ -69,7 +69,7 @@ fn iptables_statement(rule: &Rule, local_ip: &Option<String>) -> String {
         None => "".to_owned(),
         Some(ip) => format!("-d {ip}", ip = ip),
     };
-    let (chain, selector) = match rule.interface.as_str() {
+    let (chain, selector) = match rule.interface.name.as_str() {
         "lo" => (
             "OUTPUT",
             format!(
@@ -83,7 +83,7 @@ fn iptables_statement(rule: &Rule, local_ip: &Option<String>) -> String {
             "PREROUTING",
             format!(
                 "-i {interface} -p tcp {d_ip} --dport {host_port} -m state --state NEW",
-                interface = rule.interface,
+                interface = rule.interface.name,
             ),
         ),
     };

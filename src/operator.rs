@@ -32,7 +32,7 @@ impl Rule {
             self.node.addr,
             self.num_nodes,
             self.node_index,
-            self.interface,
+            self.interface.name,
         ));
         rule_id.truncate(16);
         rule_id
@@ -122,13 +122,19 @@ fn make_rules(state: &State) -> Vec<Rule> {
         &state.get::<Service>(),
         &state.get::<Interface>()
     )
-    .map(|((node_index, node), service, interface)| Rule {
-        node: node.to_owned(),
-        service: service.to_owned(),
-        interface: interface.to_owned(),
-        num_nodes,
-        node_index,
+    .map(|((node_index, node), service, interface)| {
+        if interface.is_external && service.is_internal {
+            return None;
+        }
+        Some(Rule {
+            node: node.to_owned(),
+            service: service.to_owned(),
+            interface: interface.to_owned(),
+            num_nodes,
+            node_index,
+        })
     })
+    .flatten()
     .collect()
 }
 
@@ -318,11 +324,13 @@ mod tests {
     }
 
     fn empty_state() -> State {
-        State::default().with(vec!["eth0".to_owned()]).with([Node {
-            name: "foo".to_string(),
-            addr: "bar".to_string(),
-            is_active: true,
-        }])
+        State::default()
+            .with(vec![Interface::new("eth0")])
+            .with([Node {
+                name: "foo".to_string(),
+                addr: "bar".to_string(),
+                is_active: true,
+            }])
     }
 
     fn service_with_ep(external_port: ExternalPort) -> Service {
@@ -330,6 +338,7 @@ mod tests {
             name: "foo".to_string(),
             namespace: "bar".to_string(),
             external_port,
+            is_internal: false,
         }
     }
 }

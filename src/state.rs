@@ -138,6 +138,7 @@ mod tests {
                 host_port: 123,
                 node_port: 456,
             },
+            is_internal: false,
         };
         let mut state = State::default();
 
@@ -157,6 +158,7 @@ mod tests {
                 host_port: 123,
                 node_port: 456,
             },
+            is_internal: false,
         };
         let mut state = State::default();
 
@@ -178,6 +180,7 @@ mod tests {
                     host_port: 123,
                     node_port: 456,
                 },
+                is_internal: false,
             },
             Service {
                 name: "baz".into(),
@@ -186,6 +189,7 @@ mod tests {
                     host_port: 12321,
                     node_port: 45654,
                 },
+                is_internal: false,
             },
         ];
 
@@ -196,6 +200,7 @@ mod tests {
                 host_port: 333,
                 node_port: 444,
             },
+            is_internal: false,
         };
         let mut state = State::default();
 
@@ -218,6 +223,7 @@ mod tests {
                 host_port: 333,
                 node_port: 444,
             },
+            is_internal: false,
         };
 
         let svc2 = Service {
@@ -227,6 +233,7 @@ mod tests {
                 host_port: 123,
                 node_port: 321,
             },
+            is_internal: false,
         };
 
         let node1 = Node {

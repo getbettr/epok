@@ -13,7 +13,9 @@ pub use interface::*;
 pub use node::*;
 pub use service::*;
 
-use crate::{CoreNode, CoreService, NODE_EXCLUDE_ANNOTATION, NODE_EXCLUDE_LABEL};
+use crate::{
+    CoreNode, CoreService, INTERNAL_ANNOTATION, NODE_EXCLUDE_ANNOTATION, NODE_EXCLUDE_LABEL,
+};
 
 #[enum_dispatch]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -38,6 +40,7 @@ impl TryFrom<CoreService> for Resource {
             external_port: cs.clone().try_into()?,
             name: cs.name_any(),
             namespace: cs.namespace().unwrap_or_default(),
+            is_internal: cs.annotations().contains_key(INTERNAL_ANNOTATION),
         }
         .into())
     }

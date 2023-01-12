@@ -18,8 +18,8 @@ impl Interface {
 
     pub fn external(self) -> Self {
         Self {
-            name: self.name,
             is_external: true,
+            ..self
         }
     }
 }

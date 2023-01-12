@@ -45,4 +45,11 @@ impl Service {
             ExternalPort::Absent => Err(anyhow!("invalid service")),
         }
     }
+
+    pub fn internal(self) -> Self {
+        Self {
+            is_internal: true,
+            ..self
+        }
+    }
 }

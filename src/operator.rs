@@ -229,6 +229,39 @@ mod tests {
     }
 
     #[test]
+    fn it_replaces_svc_on_interal_change() {
+        let backend = TestBackend::default();
+        let operator = Operator::new(backend);
+
+        let state0 = empty_state().with([Interface::new("eth0").external()]);
+
+        let svc = service_with_ep(ExternalPort::Spec {
+            host_port: 123,
+            node_port: 456,
+        });
+        let state1 = state0.clone().with([svc.clone()]);
+        operator.reconcile(&state1, &state0).unwrap();
+
+        // A normal service should get a rule even for external interfaces
+        let rules = operator.get_rules();
+        assert_eq!(rules.len(), 1);
+        assert_eq!(
+            rules[0].service.external_port,
+            ExternalPort::Spec {
+                host_port: 123,
+                node_port: 456
+            }
+        );
+
+        // However once the service goes "internal" the rule should be gone
+        let state2 = state1.clone().with([svc.internal()]);
+        operator.reconcile(&state2, &state1).unwrap();
+
+        let rules = operator.get_rules();
+        assert_eq!(rules.len(), 0);
+    }
+
+    #[test]
     fn it_deletes_all_rules_when_no_nodes_left() {
         let backend = TestBackend::default();
         let operator = Operator::new(backend);

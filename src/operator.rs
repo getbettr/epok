@@ -27,12 +27,13 @@ pub struct Rule {
 impl Rule {
     pub fn rule_id(&self) -> String {
         let mut rule_id = digest(format!(
-            "{}::{}::{}::{}::{}",
+            "{}::{}::{}::{}::{}::{}",
             self.service_id(),
             self.node.addr,
             self.num_nodes,
             self.node_index,
             self.interface.name,
+            self.interface.is_external,
         ));
         rule_id.truncate(16);
         rule_id

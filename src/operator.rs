@@ -79,8 +79,10 @@ impl<B: Backend> Operator<B> {
         let mut backend = self.backend.borrow_mut();
         backend.read_state();
 
-        // Case 1: same node set
-        if state.get::<Node>() == prev_state.get::<Node>() {
+        // Case 1: same node set + same interfaces
+        if state.get::<Node>() == prev_state.get::<Node>()
+            && state.get::<Interface>() == prev_state.get::<Interface>()
+        {
             let removed_service_ids = make_rules(&state.clone().with(removed.get::<Service>()))
                 .iter()
                 .map(Rule::service_id)
@@ -95,7 +97,7 @@ impl<B: Backend> Operator<B> {
             });
         }
 
-        // Case 2: node added/removed => full cycle
+        // Case 2: node or interface added or removed => full cycle
         let new_rules = make_rules(state);
 
         let new_rule_ids = new_rules.iter().map(Rule::rule_id).collect::<Vec<_>>();
@@ -259,6 +261,19 @@ mod tests {
 
         let rules = operator.get_rules();
         assert_eq!(rules.len(), 0);
+
+        // When we make the interface internal again, the rule should pop up
+        let state3 = state2.clone().with([Interface::new("eth0")]);
+        operator.reconcile(&state3, &state2).unwrap();
+        let rules = operator.get_rules();
+        assert_eq!(rules.len(), 1);
+        assert_eq!(
+            rules[0].service.external_port,
+            ExternalPort::Spec {
+                host_port: 123,
+                node_port: 456
+            }
+        );
     }
 
     #[test]

@@ -52,7 +52,7 @@ impl Rule {
             ExternalPort::Absent => "".to_string(),
         };
         port_hash.truncate(16);
-        format!("{}{}", svc_hash, port_hash)
+        format!("{}{}{}", svc_hash, port_hash, self.service.is_internal)
     }
 }
 

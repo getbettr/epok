@@ -29,7 +29,7 @@ impl ResourceLike for Service {
 
 impl Service {
     pub fn fqn(&self) -> String {
-        format!("{}/{}/{}", self.namespace, self.name, self.is_internal)
+        format!("{}/{}", self.namespace, self.name)
     }
 
     pub fn has_external_port(&self) -> bool {

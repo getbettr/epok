@@ -36,7 +36,7 @@ _tag:
   #!/usr/bin/env bash
   git ls-files -s \
     docker src build.rs rust-toolchain.toml \
-    Cargo Cargo.lock \
+    Cargo.toml Cargo.lock \
     | git hash-object --stdin \
     | cut -c-20
 

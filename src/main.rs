@@ -2,22 +2,13 @@ use std::sync::Arc;
 
 use backoff::{backoff::Backoff, ExponentialBackoff};
 use clap::Parser;
-use futures::StreamExt;
 use kube::{
     api::ListParams,
-    runtime::{
-        utils::StreamBackoff,
-        watcher,
-        watcher::{Error as WatchError, Event},
-    },
+    runtime::{utils::StreamBackoff, watcher},
     Api, Client,
 };
-use tokio::{
-    select,
-    sync::{mpsc, mpsc::Sender, Mutex},
-    time::Duration,
-};
-use tokio_stream::wrappers::ReceiverStream;
+use tokio::{sync::Mutex, time::Duration};
+use tokio_stream::StreamExt;
 
 use epok::*;
 
@@ -69,8 +60,6 @@ async fn main() -> anyhow::Result<()> {
 
     let kube_client = Client::try_default().await?;
 
-    let (op_sender, op_receiver) = mpsc::channel(OP_CHANNEL_SIZE);
-
     let service_watcher = StreamBackoff::new(
         watcher(
             Api::<CoreService>::all(kube_client.clone()),
@@ -78,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
         ),
         backoff(),
     )
-    .for_each(|event| process_event(event, &op_sender));
+    .map(|ev| ev.map(Ops::from));
 
     let node_watcher = StreamBackoff::new(
         watcher(
@@ -87,25 +76,29 @@ async fn main() -> anyhow::Result<()> {
         ),
         backoff(),
     )
-    .for_each(|event| process_event(event, &op_sender));
+    .map(|ev| ev.map(Ops::from));
 
-    let debouncer = Debounce::new(ReceiverStream::new(op_receiver), OP_DEBOUNCE_TIMEOUT)
-        .with_capacity(OP_DEBOUNCE_CAPACITY)
-        .for_each(|op_batch| async move {
-            let mut app = app.lock().await;
+    let mut debouncer = Box::pin(
+        Debounce::new(service_watcher.merge(node_watcher), OP_DEBOUNCE_TIMEOUT)
+            .with_capacity(OP_DEBOUNCE_CAPACITY),
+    );
 
-            let prev_state = app.state.clone();
-            apply(op_batch, &mut app.state);
+    while let Some(op_batch) = debouncer.next().await {
+        let mut app = app.lock().await;
 
-            if let Err(e) = app.operator.reconcile(&app.state, &prev_state) {
-                warn!("error during reconcile: {:?}", e)
+        let prev_state = app.state.clone();
+        let ops = op_batch.into_iter().flat_map(|ops| match ops {
+            Ok(inner) => inner,
+            Err(e) => {
+                warn!("error during listing: {:?}", e);
+                Ops(Vec::new())
             }
         });
+        apply(ops, &mut app.state);
 
-    select! {
-        _ = service_watcher => warn!("service watcher exited"),
-        _ = node_watcher => warn!("node watcher exited"),
-        _ = debouncer => warn!("debouncer exited"),
+        if let Err(e) = app.operator.reconcile(&app.state, &prev_state) {
+            warn!("error during reconcile: {:?}", e)
+        }
     }
     Ok(())
 }
@@ -128,20 +121,4 @@ fn get_ip<I: AsRef<str>>(interface: I, executor: &Executor) -> String {
             "ip -f inet addr show {interface} | sed -En -e 's/.*inet ([0-9.]+).*/\\1/p'"
         ))
         .unwrap_or_else(|_| panic!("could not get IPv4 address of interface {interface}"))
-}
-
-async fn process_event<T>(ev: Result<Event<T>, WatchError>, tx: &Sender<Op>)
-where
-    Ops: From<Event<T>>,
-{
-    match ev {
-        Ok(inner) => {
-            for op in Ops::from(inner) {
-                tx.send(op).await.expect("send failed");
-            }
-        }
-        Err(e) => {
-            warn!("error during list: {:?}", e)
-        }
-    }
 }

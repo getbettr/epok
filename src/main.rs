@@ -22,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
     initialize_logging("EPOK_LOG_LEVEL");
 
     let opts = Opts::parse();
-    debug!("parsed options: {:?}", opts);
+    debug!("parsed options: {opts:?}");
 
     let local_ip = opts
         .external_interface
@@ -43,7 +43,7 @@ async fn main() -> anyhow::Result<()> {
         })
         .collect::<Vec<_>>();
 
-    info!("{:?}", &interfaces);
+    info!("{interfaces:?}");
 
     if local_ip.is_some() {
         interfaces.push(Interface::new("lo"));
@@ -90,14 +90,14 @@ async fn main() -> anyhow::Result<()> {
         let ops = op_batch.into_iter().flat_map(|ops| match ops {
             Ok(inner) => inner,
             Err(e) => {
-                warn!("error during listing: {:?}", e);
+                warn!("error during listing: {e:?}");
                 Ops(Vec::new())
             }
         });
         apply(ops, &mut app.state);
 
         if let Err(e) = app.operator.reconcile(&app.state, &prev_state) {
-            warn!("error during reconcile: {:?}", e)
+            warn!("error during reconcile: {e:?}")
         }
     }
     Ok(())

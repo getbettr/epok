@@ -16,7 +16,7 @@ impl Backend for IptablesBackend {
     fn read_state(&mut self) {
         self.rule_state = self
             .executor
-            .run_fun(format!("sudo iptables-save -t nat | grep {}", RULE_MARKER))
+            .run_fun(format!("sudo iptables-save -t nat | grep {RULE_MARKER}"))
             .unwrap_or_else(|_| "".to_owned());
     }
 
@@ -28,7 +28,7 @@ impl Backend for IptablesBackend {
                 .sorted_unstable_by_key(|r| Reverse(r.node_index))
                 .map(|rule| {
                     let statement = iptables_statement(&rule, &self.local_ip);
-                    format!("sudo iptables -w -t nat -A {}", statement)
+                    format!("sudo iptables -w -t nat -A {statement}")
                 }),
             &self.batch_opts,
         )?;

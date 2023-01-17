@@ -7,7 +7,7 @@ type Result = anyhow::Result<()>;
 impl Executor {
     pub fn run_fun<S: AsRef<str>>(&self, cmd: S) -> anyhow::Result<String> {
         fn inner(this: &Executor, cmd: &str) -> anyhow::Result<String> {
-            debug!("running command: {}", &cmd);
+            debug!("running command: {cmd}");
             match this {
                 Executor::Local => Ok(run_fun!(sh -c "$cmd")?),
                 Executor::Ssh(ssh_host) => {

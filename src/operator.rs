@@ -47,12 +47,12 @@ impl Rule {
                 host_port,
                 node_port,
             } => {
-                format!("::{}", digest(format!("{}::{}", host_port, node_port)))
+                format!("::{}", digest(format!("{host_port}::{node_port}")))
             }
             ExternalPort::Absent => "".to_string(),
         };
         port_hash.truncate(16);
-        format!("{}{}{}", svc_hash, port_hash, self.service.is_internal)
+        format!("{svc_hash}{port_hash}{}", self.service.is_internal)
     }
 }
 
@@ -73,8 +73,8 @@ impl<B: Backend> Operator<B> {
             return Ok(());
         }
 
-        info!("added state: {:?}", &added);
-        info!("removed state: {:?}", &removed);
+        info!("added state: {added:?}");
+        info!("removed state: {removed:?}");
 
         let mut backend = self.backend.borrow_mut();
         backend.read_state();

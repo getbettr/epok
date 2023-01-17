@@ -6,15 +6,17 @@ type Result = anyhow::Result<()>;
 
 impl Executor {
     pub fn run_fun<S: AsRef<str>>(&self, cmd: S) -> anyhow::Result<String> {
-        let cmd = cmd.as_ref();
-        debug!("running command: {}", &cmd);
-        match self {
-            Executor::Local => Ok(run_fun!(sh -c "$cmd")?),
-            Executor::Ssh(ssh_host) => {
-                let (host, port, key) = (&ssh_host.host, ssh_host.port, &ssh_host.key_path);
-                Ok(run_fun!(ssh -p $port -i $key $host "$cmd")?)
+        fn inner(this: &Executor, cmd: &str) -> anyhow::Result<String> {
+            debug!("running command: {}", &cmd);
+            match this {
+                Executor::Local => Ok(run_fun!(sh -c "$cmd")?),
+                Executor::Ssh(ssh_host) => {
+                    let (host, port, key) = (&ssh_host.host, ssh_host.port, &ssh_host.key_path);
+                    Ok(run_fun!(ssh -p $port -i $key $host "$cmd")?)
+                }
             }
         }
+        inner(self, cmd.as_ref())
     }
 
     pub fn run_commands(

@@ -101,9 +101,11 @@ impl<S: Stream> Stream for Debounce<S> {
 
 #[cfg(test)]
 mod tests {
-    use super::Debounce;
-    use futures::{channel::mpsc, pin_mut, poll, stream, StreamExt};
     use std::{collections::VecDeque, task::Poll, time::Duration};
+
+    use futures::{channel::mpsc, pin_mut, poll, stream, StreamExt};
+
+    use super::Debounce;
 
     #[tokio::test]
     async fn should_give_up() {

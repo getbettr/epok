@@ -58,8 +58,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use quickcheck::*;
+
+    use super::*;
 
     #[test]
     fn test_default() {

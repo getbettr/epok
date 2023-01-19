@@ -1,5 +1,6 @@
-use itertools::Itertools;
 use std::cmp::Reverse;
+
+use itertools::Itertools;
 
 use crate::{Backend, BatchOpts, Executor, Rule, RULE_MARKER, SERVICE_MARKER};
 

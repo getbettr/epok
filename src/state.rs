@@ -1,6 +1,7 @@
+use std::{any::TypeId, collections::BTreeSet, ops::Sub, vec::IntoIter};
+
 use itertools::Itertools;
 use kube::runtime::watcher::Event;
-use std::{any::TypeId, collections::BTreeSet, ops::Sub, vec::IntoIter};
 
 use crate::{Resource, ResourceLike};
 

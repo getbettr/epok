@@ -27,12 +27,11 @@ pub use batch::Batch;
 pub use cli::{BatchOpts, Executor, Opts, SshHost};
 pub use debounce::Debounce;
 pub use iptables::IptablesBackend;
+pub use k8s_openapi::api::core::v1::{Node as CoreNode, Service as CoreService};
 pub use logging::*;
 pub use operator::{Backend, Operator, Rule};
 pub use res::{ExternalPort, Interface, Node, Resource, ResourceLike, Service};
 pub use state::{apply, Op, Ops, State};
-
-pub use k8s_openapi::api::core::v1::{Node as CoreNode, Service as CoreService};
 
 pub const ANNOTATION: &str = "epok.getbetter.ro/externalport";
 pub const INTERNAL_ANNOTATION: &str = "epok.getbetter.ro/internal";

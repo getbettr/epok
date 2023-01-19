@@ -49,10 +49,7 @@ async fn main() -> anyhow::Result<()> {
         watch::<CoreNode>(kube_client),
     );
 
-    let mut debounced = Box::pin(
-        Debounce::new(services.merge(nodes), OP_DEBOUNCE_TIMEOUT)
-            .with_capacity(OP_DEBOUNCE_CAPACITY),
-    );
+    let mut debounced = Debounce::boxed(services.merge(nodes));
 
     while let Some(op_batch) = debounced.next().await {
         let prev_state = state.clone();

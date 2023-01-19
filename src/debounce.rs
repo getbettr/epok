@@ -8,6 +8,8 @@ use futures::{Future, Stream};
 use pin_project::pin_project;
 use tokio::time::{sleep, Duration, Sleep};
 
+use crate::{OP_DEBOUNCE_CAPACITY, OP_DEBOUNCE_TIMEOUT};
+
 const DEFAULT_CAPACITY: usize = 256;
 
 #[pin_project]
@@ -19,6 +21,15 @@ pub struct Debounce<S: Stream> {
     queue: VecDeque<S::Item>,
     duration: Duration,
     capacity: usize,
+}
+
+impl<S: Stream> Debounce<S> {
+    pub fn boxed(s: S) -> Pin<Box<Self>> {
+        Box::pin(
+            Self::new(s, OP_DEBOUNCE_TIMEOUT)
+                .with_capacity(OP_DEBOUNCE_CAPACITY),
+        )
+    }
 }
 
 #[pin_project(project = DebounceStateProj)]

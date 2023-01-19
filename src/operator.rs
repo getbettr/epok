@@ -9,7 +9,8 @@ type Result = anyhow::Result<()>;
 
 pub trait Backend {
     fn read_state(&mut self);
-    fn apply_rules(&mut self, rules: impl IntoIterator<Item = Rule>) -> Result;
+    fn apply_rules(&mut self, rules: impl IntoIterator<Item = Rule>)
+        -> Result;
     fn delete_rules<P>(&mut self, pred: P) -> Result
     where
         P: FnMut(&&str) -> bool;
@@ -43,10 +44,7 @@ impl Rule {
         let mut svc_hash = digest(self.service.fqn());
         svc_hash.truncate(16);
         let mut port_hash = match self.service.external_port {
-            ExternalPort::Spec {
-                host_port,
-                node_port,
-            } => {
+            ExternalPort::Spec { host_port, node_port } => {
                 format!("::{}", digest(format!("{host_port}::{node_port}")))
             }
             ExternalPort::Absent => "".to_string(),
@@ -61,11 +59,7 @@ pub struct Operator<B> {
 }
 
 impl<B: Backend> Operator<B> {
-    pub fn new(backend: B) -> Self {
-        Self {
-            backend: RefCell::new(backend),
-        }
-    }
+    pub fn new(backend: B) -> Self { Self { backend: RefCell::new(backend) } }
 
     pub fn reconcile(&self, state: &State, prev_state: &State) -> Result {
         let (added, removed) = state.diff(prev_state);
@@ -83,12 +77,15 @@ impl<B: Backend> Operator<B> {
         if state.get::<Node>() == prev_state.get::<Node>()
             && state.get::<Interface>() == prev_state.get::<Interface>()
         {
-            let removed_service_ids = make_rules(&state.clone().with(removed.get::<Service>()))
-                .iter()
-                .map(Rule::service_id)
-                .collect::<Vec<_>>();
+            let removed_service_ids =
+                make_rules(&state.clone().with(removed.get::<Service>()))
+                    .iter()
+                    .map(Rule::service_id)
+                    .collect::<Vec<_>>();
 
-            backend.apply_rules(make_rules(&state.clone().with(added.get::<Service>())))?;
+            backend.apply_rules(make_rules(
+                &state.clone().with(added.get::<Service>()),
+            ))?;
 
             return backend.delete_rules(|&rule| {
                 removed_service_ids
@@ -100,14 +97,13 @@ impl<B: Backend> Operator<B> {
         // Case 2: node or interface added or removed => full cycle
         let new_rules = make_rules(state);
 
-        let new_rule_ids = new_rules.iter().map(Rule::rule_id).collect::<Vec<_>>();
+        let new_rule_ids =
+            new_rules.iter().map(Rule::rule_id).collect::<Vec<_>>();
 
         backend.apply_rules(new_rules)?;
 
         backend.delete_rules(|&rule| {
-            new_rule_ids
-                .iter()
-                .all(|new_rule_id| !rule.contains(new_rule_id))
+            new_rule_ids.iter().all(|new_rule_id| !rule.contains(new_rule_id))
         })
     }
 
@@ -161,7 +157,10 @@ mod tests {
             // noop: we keep state in memory
         }
 
-        fn apply_rules(&mut self, rules: impl IntoIterator<Item = Rule>) -> Result {
+        fn apply_rules(
+            &mut self,
+            rules: impl IntoIterator<Item = Rule>,
+        ) -> Result {
             for rule in rules {
                 self.rules.push(rule);
             }
@@ -172,8 +171,9 @@ mod tests {
         where
             P: FnMut(&&str) -> bool,
         {
-            self.rules
-                .retain(|r| !pred(&format!("{} {}", r.rule_id(), r.service_id()).as_str()));
+            self.rules.retain(|r| {
+                !pred(&format!("{} {}", r.rule_id(), r.service_id()).as_str())
+            });
             Ok(())
         }
     }
@@ -197,36 +197,32 @@ mod tests {
 
         let state0 = empty_state();
 
-        let state1 = state0.clone().with([service_with_ep(ExternalPort::Spec {
-            host_port: 123,
-            node_port: 456,
-        })]);
+        let state1 =
+            state0.clone().with([service_with_ep(ExternalPort::Spec {
+                host_port: 123,
+                node_port: 456,
+            })]);
         operator.reconcile(&state1, &state0).unwrap();
 
         let rules = operator.get_rules();
         assert_eq!(rules.len(), 1);
         assert_eq!(
             rules[0].service.external_port,
-            ExternalPort::Spec {
-                host_port: 123,
-                node_port: 456
-            }
+            ExternalPort::Spec { host_port: 123, node_port: 456 }
         );
 
-        let state2 = state1.clone().with([service_with_ep(ExternalPort::Spec {
-            host_port: 1234,
-            node_port: 456,
-        })]);
+        let state2 =
+            state1.clone().with([service_with_ep(ExternalPort::Spec {
+                host_port: 1234,
+                node_port: 456,
+            })]);
         operator.reconcile(&state2, &state1).unwrap();
 
         let rules = operator.get_rules();
         assert_eq!(rules.len(), 1);
         assert_eq!(
             rules[0].service.external_port,
-            ExternalPort::Spec {
-                host_port: 1234,
-                node_port: 456
-            }
+            ExternalPort::Spec { host_port: 1234, node_port: 456 }
         );
     }
 
@@ -249,10 +245,7 @@ mod tests {
         assert_eq!(rules.len(), 1);
         assert_eq!(
             rules[0].service.external_port,
-            ExternalPort::Spec {
-                host_port: 123,
-                node_port: 456
-            }
+            ExternalPort::Spec { host_port: 123, node_port: 456 }
         );
 
         // However once the service goes "internal" the rule should be gone
@@ -269,10 +262,7 @@ mod tests {
         assert_eq!(rules.len(), 1);
         assert_eq!(
             rules[0].service.external_port,
-            ExternalPort::Spec {
-                host_port: 123,
-                node_port: 456
-            }
+            ExternalPort::Spec { host_port: 123, node_port: 456 }
         );
     }
 
@@ -283,10 +273,11 @@ mod tests {
 
         let state0 = empty_state();
 
-        let state1 = state0.clone().with([service_with_ep(ExternalPort::Spec {
-            host_port: 123,
-            node_port: 456,
-        })]);
+        let state1 =
+            state0.clone().with([service_with_ep(ExternalPort::Spec {
+                host_port: 123,
+                node_port: 456,
+            })]);
         operator.reconcile(&state1, &state0).unwrap();
 
         let state2 = state1.clone().with(Vec::<Node>::new());
@@ -338,10 +329,7 @@ mod tests {
         let rules = operator.get_rules();
         assert_eq!(rules.len(), 2);
         assert!(rules.iter().all(|x| x.service.external_port
-            == ExternalPort::Spec {
-                host_port: 789,
-                node_port: 654
-            }))
+            == ExternalPort::Spec { host_port: 789, node_port: 654 }))
     }
 
     #[test]
@@ -349,20 +337,18 @@ mod tests {
         let backend = TestBackend::default();
         let operator = Operator::new(backend);
 
-        let state0 = empty_state().with([service_with_ep(ExternalPort::Spec {
-            host_port: 123,
-            node_port: 456,
-        })]);
+        let state0 =
+            empty_state().with([service_with_ep(ExternalPort::Spec {
+                host_port: 123,
+                node_port: 456,
+            })]);
         operator.reconcile(&state0, &empty_state()).unwrap();
 
         let rules = operator.get_rules();
         assert_eq!(rules.len(), 1);
         assert_eq!(
             rules[0].service.external_port,
-            ExternalPort::Spec {
-                host_port: 123,
-                node_port: 456
-            }
+            ExternalPort::Spec { host_port: 123, node_port: 456 }
         );
 
         let state1 = state0.clone().with(Vec::<Node>::new());
@@ -373,13 +359,11 @@ mod tests {
     }
 
     fn empty_state() -> State {
-        State::default()
-            .with(vec![Interface::new("eth0")])
-            .with([Node {
-                name: "foo".to_string(),
-                addr: "bar".to_string(),
-                is_active: true,
-            }])
+        State::default().with(vec![Interface::new("eth0")]).with([Node {
+            name: "foo".to_string(),
+            addr: "bar".to_string(),
+            is_active: true,
+        }])
     }
 
     fn service_with_ep(external_port: ExternalPort) -> Service {

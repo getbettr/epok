@@ -10,30 +10,16 @@ pub struct Interface {
 
 impl Interface {
     pub fn new<N: AsRef<str>>(name: N) -> Self {
-        Self {
-            name: name.as_ref().to_owned(),
-            is_external: false,
-        }
+        Self { name: name.as_ref().to_owned(), is_external: false }
     }
 
-    pub fn external(self) -> Self {
-        Self {
-            is_external: true,
-            ..self
-        }
-    }
+    pub fn external(self) -> Self { Self { is_external: true, ..self } }
 }
 
 impl ResourceLike for Interface {
-    fn id(&self) -> String {
-        self.name.to_owned()
-    }
+    fn id(&self) -> String { self.name.to_owned() }
 
-    fn type_id(&self) -> TypeId {
-        TypeId::of::<Interface>()
-    }
+    fn type_id(&self) -> TypeId { TypeId::of::<Interface>() }
 
-    fn is_active(&self) -> bool {
-        true
-    }
+    fn is_active(&self) -> bool { true }
 }

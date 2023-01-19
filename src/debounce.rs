@@ -70,7 +70,10 @@ impl<S: Stream> Debounce<S> {
 impl<S: Stream> Stream for Debounce<S> {
     type Item = VecDeque<S::Item>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
         let mut this = self.as_mut().project();
         let queue = this.queue;
 
@@ -165,7 +168,10 @@ mod tests {
         assert_eq!(poll!(deb.next()), Poll::Pending);
 
         tokio::time::advance(Duration::from_millis(20)).await;
-        assert_eq!(poll!(deb.next()), Poll::Ready(Some(VecDeque::from([4, 5]))));
+        assert_eq!(
+            poll!(deb.next()),
+            Poll::Ready(Some(VecDeque::from([4, 5])))
+        );
 
         // check drain when inner stream ended (for good measure)
         tx.unbounded_send(6).unwrap();
@@ -181,18 +187,25 @@ mod tests {
         tokio::time::pause();
         let rx = stream::iter([1, 2, 3, 4, 5]);
 
-        let deb = Debounce::new(rx, Duration::from_millis(100)).with_capacity(2);
+        let deb =
+            Debounce::new(rx, Duration::from_millis(100)).with_capacity(2);
         pin_mut!(deb);
 
         let _ = poll!(deb.next());
 
         tokio::time::advance(Duration::from_millis(110)).await;
-        assert_eq!(poll!(deb.next()), Poll::Ready(Some(VecDeque::from([1, 2]))));
+        assert_eq!(
+            poll!(deb.next()),
+            Poll::Ready(Some(VecDeque::from([1, 2])))
+        );
 
         let _ = poll!(deb.next());
 
         tokio::time::advance(Duration::from_millis(110)).await;
-        assert_eq!(poll!(deb.next()), Poll::Ready(Some(VecDeque::from([3, 4]))));
+        assert_eq!(
+            poll!(deb.next()),
+            Poll::Ready(Some(VecDeque::from([3, 4])))
+        );
 
         let _ = poll!(deb.next());
 

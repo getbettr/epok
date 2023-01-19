@@ -13,17 +13,11 @@ pub struct Node {
 }
 
 impl ResourceLike for Node {
-    fn id(&self) -> String {
-        self.name.to_owned()
-    }
+    fn id(&self) -> String { self.name.to_owned() }
 
-    fn type_id(&self) -> TypeId {
-        TypeId::of::<Node>()
-    }
+    fn type_id(&self) -> TypeId { TypeId::of::<Node>() }
 
-    fn is_active(&self) -> bool {
-        self.is_active
-    }
+    fn is_active(&self) -> bool { self.is_active }
 }
 
 pub fn node_ip(status: NodeStatus) -> anyhow::Result<String> {

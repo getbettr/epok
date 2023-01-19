@@ -1,5 +1,7 @@
 pub use tracing::{debug, info, warn};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
+use tracing_subscriber::{
+    layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry,
+};
 
 pub fn initialize_logging(env: &str) {
     let filter = match EnvFilter::try_from_env(env) {

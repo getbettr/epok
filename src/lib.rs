@@ -16,11 +16,9 @@ pub mod watcher;
 lazy_static! {
     static ref ARG_MAX: String = {
         let default = 8192_u32;
-        let res = run_fun!(getconf ARG_MAX).unwrap_or_else(|_| default.to_string());
-        format!(
-            "{:.0}",
-            (res.parse::<u32>().unwrap_or(default) as f32 * 0.8)
-        )
+        let res =
+            run_fun!(getconf ARG_MAX).unwrap_or_else(|_| default.to_string());
+        format!("{:.0}", (res.parse::<u32>().unwrap_or(default) as f32 * 0.8))
     };
 }
 
@@ -28,10 +26,14 @@ pub use batch::Batch;
 pub use cli::{BatchOpts, Executor, Opts, SshHost};
 pub use debounce::Debounce;
 pub use iptables::IptablesBackend;
-pub use k8s_openapi::api::core::v1::{Node as CoreNode, Service as CoreService};
+pub use k8s_openapi::api::core::v1::{
+    Node as CoreNode, Service as CoreService,
+};
 pub use logging::*;
 pub use operator::{Backend, Operator, Rule};
-pub use res::{ExternalPort, Interface, Node, Resource, ResourceLike, Service};
+pub use res::{
+    ExternalPort, Interface, Node, Resource, ResourceLike, Service,
+};
 pub use state::{apply, Op, Ops, State};
 pub use watcher::watch;
 

@@ -12,12 +12,7 @@ where
 {
     pub fn new(inner: I, arg_max: usize, sep: &'a I::Item) -> Self {
         debug_assert!(arg_max > 0);
-        Self {
-            inner,
-            sep,
-            arg_max,
-            _first: None,
-        }
+        Self { inner, sep, arg_max, _first: None }
     }
 }
 
@@ -29,10 +24,9 @@ where
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let first = self
-            ._first
-            .take()
-            .unwrap_or_else(|| self.inner.next().unwrap_or_default().as_ref().to_owned());
+        let first = self._first.take().unwrap_or_else(|| {
+            self.inner.next().unwrap_or_default().as_ref().to_owned()
+        });
 
         if first.len() > self.arg_max {
             return Some(first);

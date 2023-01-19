@@ -7,14 +7,14 @@ use std::any::TypeId;
 
 use enum_dispatch::enum_dispatch;
 use kube::ResourceExt;
-
 pub use external_port::*;
 pub use interface::*;
 pub use node::*;
 pub use service::*;
 
 use crate::{
-    CoreNode, CoreService, INTERNAL_ANNOTATION, NODE_EXCLUDE_ANNOTATION, NODE_EXCLUDE_LABEL,
+    CoreNode, CoreService, INTERNAL_ANNOTATION, NODE_EXCLUDE_ANNOTATION,
+    NODE_EXCLUDE_LABEL,
 };
 
 #[enum_dispatch]
@@ -56,11 +56,6 @@ impl TryFrom<CoreNode> for Resource {
             && !cn.annotations().contains_key(NODE_EXCLUDE_ANNOTATION)
             && !cn.labels().contains_key(NODE_EXCLUDE_LABEL);
 
-        Ok(Node {
-            name: cn.name_any(),
-            addr,
-            is_active,
-        }
-        .into())
+        Ok(Node { name: cn.name_any(), addr, is_active }.into())
     }
 }

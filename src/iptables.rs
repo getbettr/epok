@@ -21,7 +21,10 @@ impl Backend for IptablesBackend {
             .unwrap_or_else(|_| "".to_owned());
     }
 
-    fn apply_rules(&mut self, rules: impl IntoIterator<Item = Rule>) -> Result {
+    fn apply_rules(
+        &mut self,
+        rules: impl IntoIterator<Item = Rule>,
+    ) -> Result {
         self.executor.run_commands(
             rules
                 .into_iter()
@@ -48,13 +51,12 @@ impl Backend for IptablesBackend {
 }
 
 impl IptablesBackend {
-    pub fn new(executor: Executor, batch_opts: BatchOpts, local_ip: Option<String>) -> Self {
-        Self {
-            executor,
-            batch_opts,
-            rule_state: Default::default(),
-            local_ip,
-        }
+    pub fn new(
+        executor: Executor,
+        batch_opts: BatchOpts,
+        local_ip: Option<String>,
+    ) -> Self {
+        Self { executor, batch_opts, rule_state: Default::default(), local_ip }
     }
 }
 
@@ -65,7 +67,8 @@ fn append_to_delete(rule: &str) -> String {
 }
 
 fn iptables_statement(rule: &Rule, local_ip: &Option<String>) -> String {
-    let (host_port, node_port) = rule.service.get_ports().expect("invalid service");
+    let (host_port, node_port) =
+        rule.service.get_ports().expect("invalid service");
     let d_ip = match local_ip {
         None => "".to_owned(),
         Some(ip) => format!("-d {ip}", ip = ip),

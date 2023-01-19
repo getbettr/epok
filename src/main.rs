@@ -4,7 +4,6 @@ use clap::Parser;
 use kube::Client;
 use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
-
 use epok::*;
 
 struct App<B: Backend> {

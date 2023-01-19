@@ -11,9 +11,7 @@ pub struct State {
 }
 
 impl State {
-    pub fn is_empty(&self) -> bool {
-        self.resources.is_empty()
-    }
+    pub fn is_empty(&self) -> bool { self.resources.is_empty() }
 
     pub fn diff(&self, prev_state: &Self) -> (Self, Self) {
         let added = self - prev_state;
@@ -53,9 +51,7 @@ impl Sub for &State {
     type Output = State;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        State {
-            resources: &self.resources - &rhs.resources,
-        }
+        State { resources: &self.resources - &rhs.resources }
     }
 }
 
@@ -80,9 +76,7 @@ impl IntoIterator for Ops {
     type Item = Op;
     type IntoIter = IntoIter<Op>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }
 
 impl Op {
@@ -117,9 +111,8 @@ where
                 .filter(Resource::is_active)
                 .map(Op::ResourceAdd)
                 .collect()),
-            Event::Deleted(obj) => {
-                Resource::try_from(obj).map(|res| vec![Op::ResourceRemove(res.id())])
-            }
+            Event::Deleted(obj) => Resource::try_from(obj)
+                .map(|res| vec![Op::ResourceRemove(res.id())]),
         };
         Ops(ops.unwrap_or_default())
     }

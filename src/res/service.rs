@@ -14,23 +14,15 @@ pub struct Service {
 }
 
 impl ResourceLike for Service {
-    fn id(&self) -> String {
-        self.fqn()
-    }
+    fn id(&self) -> String { self.fqn() }
 
-    fn type_id(&self) -> TypeId {
-        TypeId::of::<Service>()
-    }
+    fn type_id(&self) -> TypeId { TypeId::of::<Service>() }
 
-    fn is_active(&self) -> bool {
-        self.has_external_port()
-    }
+    fn is_active(&self) -> bool { self.has_external_port() }
 }
 
 impl Service {
-    pub fn fqn(&self) -> String {
-        format!("{}/{}", self.namespace, self.name)
-    }
+    pub fn fqn(&self) -> String { format!("{}/{}", self.namespace, self.name) }
 
     pub fn has_external_port(&self) -> bool {
         !matches!(self.external_port, ExternalPort::Absent)
@@ -38,18 +30,12 @@ impl Service {
 
     pub fn get_ports(&self) -> Result<(u16, u16), anyhow::Error> {
         match self.external_port {
-            ExternalPort::Spec {
-                host_port,
-                node_port,
-            } => Ok((host_port, node_port)),
+            ExternalPort::Spec { host_port, node_port } => {
+                Ok((host_port, node_port))
+            }
             ExternalPort::Absent => Err(anyhow!("invalid service")),
         }
     }
 
-    pub fn internal(self) -> Self {
-        Self {
-            is_internal: true,
-            ..self
-        }
-    }
+    pub fn internal(self) -> Self { Self { is_internal: true, ..self } }
 }

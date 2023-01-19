@@ -11,7 +11,7 @@ pub struct Opts {
     pub executor: Executor,
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<()> {
     initialize_logging("EPOK_LOG_LEVEL");
 
     let opts = Opts::parse();

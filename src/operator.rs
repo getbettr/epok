@@ -3,15 +3,17 @@ use std::cell::RefCell;
 use itertools::iproduct;
 use sha256::digest;
 
-use crate::{logging::*, ExternalPort, Interface, Node, Service, State};
-
-type Result = anyhow::Result<()>;
+use crate::{
+    logging::*, Error, ExternalPort, Interface, Node, Result, Service, State,
+};
 
 pub trait Backend {
     fn read_state(&mut self);
-    fn apply_rules(&mut self, rules: impl IntoIterator<Item = Rule>)
-        -> Result;
-    fn delete_rules<P>(&mut self, pred: P) -> Result
+    fn apply_rules(
+        &mut self,
+        rules: impl IntoIterator<Item = Rule>,
+    ) -> Result<()>;
+    fn delete_rules<P>(&mut self, pred: P) -> Result<()>
     where
         P: FnMut(&&str) -> bool;
 }
@@ -61,7 +63,7 @@ pub struct Operator<B> {
 impl<B: Backend> Operator<B> {
     pub fn new(backend: B) -> Self { Self { backend: RefCell::new(backend) } }
 
-    pub fn reconcile(&self, state: &State, prev_state: &State) -> Result {
+    pub fn reconcile(&self, state: &State, prev_state: &State) -> Result<()> {
         let (added, removed) = state.diff(prev_state);
         if added.is_empty() && removed.is_empty() {
             return Ok(());
@@ -83,9 +85,11 @@ impl<B: Backend> Operator<B> {
                     .map(Rule::service_id)
                     .collect::<Vec<_>>();
 
-            backend.apply_rules(make_rules(
-                &state.clone().with(added.get::<Service>()),
-            ))?;
+            backend
+                .apply_rules(make_rules(
+                    &state.clone().with(added.get::<Service>()),
+                ))
+                .map_err(|e| Error::OperatorError(Box::new(e)))?;
 
             return backend.delete_rules(|&rule| {
                 removed_service_ids
@@ -100,17 +104,25 @@ impl<B: Backend> Operator<B> {
         let new_rule_ids =
             new_rules.iter().map(Rule::rule_id).collect::<Vec<_>>();
 
-        backend.apply_rules(new_rules)?;
+        backend
+            .apply_rules(new_rules)
+            .map_err(|e| Error::OperatorError(Box::new(e)))?;
 
-        backend.delete_rules(|&rule| {
-            new_rule_ids.iter().all(|new_rule_id| !rule.contains(new_rule_id))
-        })
+        backend
+            .delete_rules(|&rule| {
+                new_rule_ids
+                    .iter()
+                    .all(|new_rule_id| !rule.contains(new_rule_id))
+            })
+            .map_err(|e| Error::OperatorError(Box::new(e)))
     }
 
-    pub fn cleanup(&self) -> Result {
+    pub fn cleanup(&self) -> Result<()> {
         let mut backend = self.backend.borrow_mut();
         backend.read_state();
-        backend.delete_rules(|_| true)
+        backend
+            .delete_rules(|_| true)
+            .map_err(|e| Error::OperatorError(Box::new(e)))
     }
 }
 
@@ -160,14 +172,14 @@ mod tests {
         fn apply_rules(
             &mut self,
             rules: impl IntoIterator<Item = Rule>,
-        ) -> Result {
+        ) -> Result<()> {
             for rule in rules {
                 self.rules.push(rule);
             }
             Ok(())
         }
 
-        fn delete_rules<P>(&mut self, mut pred: P) -> Result
+        fn delete_rules<P>(&mut self, mut pred: P) -> Result<()>
         where
             P: FnMut(&&str) -> bool,
         {

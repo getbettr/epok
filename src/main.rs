@@ -56,14 +56,14 @@ async fn main() -> anyhow::Result<()> {
         let ops = op_batch.into_iter().flat_map(|ops| match ops {
             Ok(inner) => inner,
             Err(e) => {
-                warn!("error during listing: {e:?}");
+                warn!("{e}");
                 Ops(Vec::new())
             }
         });
         apply(ops, &mut state);
 
         if let Err(e) = operator.reconcile(&state, &prev_state) {
-            warn!("error during reconcile: {e:?}")
+            warn!("{e}");
         }
     }
     Ok(())

@@ -1,19 +1,20 @@
 use cmd_lib::run_fun;
 
-use crate::{logging::*, Batch, BatchOpts, Executor};
-
-type Result = anyhow::Result<()>;
+use crate::{logging::*, Batch, BatchOpts, Error, Executor, Result};
 
 impl Executor {
-    pub fn run_fun<S: AsRef<str>>(&self, cmd: S) -> anyhow::Result<String> {
-        fn inner(this: &Executor, cmd: &str) -> anyhow::Result<String> {
+    pub fn run_fun<S: AsRef<str>>(&self, cmd: S) -> Result<String> {
+        fn inner(this: &Executor, cmd: &str) -> Result<String> {
             debug!("running command: {cmd}");
             match this {
-                Executor::Local => Ok(run_fun!(sh -c "$cmd")?),
+                Executor::Local => {
+                    Ok(run_fun!(sh -c "$cmd").map_err(Error::ExecutorError)?)
+                }
                 Executor::Ssh(ssh_host) => {
                     let (host, port, key) =
                         (&ssh_host.host, ssh_host.port, &ssh_host.key_path);
-                    Ok(run_fun!(ssh -p $port -i $key $host "$cmd")?)
+                    Ok(run_fun!(ssh -p $port -i $key $host "$cmd")
+                        .map_err(Error::ExecutorError)?)
                 }
             }
         }
@@ -24,7 +25,7 @@ impl Executor {
         &self,
         commands: impl Iterator<Item = String>,
         batch_opts: &BatchOpts,
-    ) -> Result {
+    ) -> Result<()> {
         if batch_opts.batch_commands {
             let sep = "; ".to_owned();
             let batch = Batch::new(commands, batch_opts.batch_size, &sep);

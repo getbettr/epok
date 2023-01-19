@@ -1,4 +1,7 @@
-use std::{fmt::Debug, time::Duration};
+use std::{
+    fmt::{Debug, Display},
+    time::Duration,
+};
 
 use backoff::{backoff::Backoff, ExponentialBackoff};
 use k8s_openapi::serde::de::DeserializeOwned;
@@ -16,6 +19,7 @@ where
     T: CoreResource + DeserializeOwned + Clone + Debug + Send + 'static,
     <T as CoreResource>::DynamicType: Default,
     Resource: TryFrom<T>,
+    <Resource as TryFrom<T>>::Error: Display,
 {
     StreamBackoff::new(
         watcher(Api::<T>::all(client), ListParams::default()),

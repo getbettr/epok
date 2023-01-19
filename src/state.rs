@@ -1,9 +1,11 @@
-use std::{any::TypeId, collections::BTreeSet, ops::Sub, vec::IntoIter};
+use std::{
+    any::TypeId, collections::BTreeSet, fmt::Display, ops::Sub, vec::IntoIter,
+};
 
 use itertools::Itertools;
 use kube::runtime::watcher::Event;
 
-use crate::{Resource, ResourceLike};
+use crate::{warn, Resource, ResourceLike};
 
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
 pub struct State {
@@ -95,24 +97,40 @@ impl Op {
 impl<C> From<Event<C>> for Ops
 where
     Resource: TryFrom<C>,
+    <Resource as TryFrom<C>>::Error: Display,
 {
     fn from(event: Event<C>) -> Self {
         let ops = match event {
-            Event::Applied(obj) => Resource::try_from(obj).map(|res| {
-                let mut ret = vec![Op::ResourceRemove(res.id())];
-                if res.is_active() {
-                    ret.push(Op::ResourceAdd(res))
-                }
-                ret
-            }),
+            Event::Applied(obj) => Resource::try_from(obj)
+                .map(|res| {
+                    let mut ret = vec![Op::ResourceRemove(res.id())];
+                    if res.is_active() {
+                        ret.push(Op::ResourceAdd(res))
+                    }
+                    ret
+                })
+                .map_err(|e| {
+                    warn!("could not extract resource: {}", e);
+                    e
+                }),
             Event::Restarted(objs) => Ok(objs
                 .into_iter()
-                .filter_map(|o| Resource::try_from(o).ok())
+                .filter_map(|o| match Resource::try_from(o) {
+                    Ok(r) => Some(r),
+                    Err(e) => {
+                        warn!("could not extract resource: {}", e);
+                        None
+                    }
+                })
                 .filter(Resource::is_active)
                 .map(Op::ResourceAdd)
                 .collect()),
             Event::Deleted(obj) => Resource::try_from(obj)
-                .map(|res| vec![Op::ResourceRemove(res.id())]),
+                .map(|res| vec![Op::ResourceRemove(res.id())])
+                .map_err(|e| {
+                    warn!("could not extract resource: {}", e);
+                    e
+                }),
         };
         Ops(ops.unwrap_or_default())
     }

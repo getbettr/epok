@@ -2,9 +2,10 @@ use std::cmp::Reverse;
 
 use itertools::Itertools;
 
-use crate::{Backend, BatchOpts, Executor, Rule, RULE_MARKER, SERVICE_MARKER};
-
-type Result = anyhow::Result<()>;
+use crate::{
+    Backend, BatchOpts, Error, Executor, Result, Rule, RULE_MARKER,
+    SERVICE_MARKER,
+};
 
 pub struct IptablesBackend {
     executor: Executor,
@@ -24,29 +25,34 @@ impl Backend for IptablesBackend {
     fn apply_rules(
         &mut self,
         rules: impl IntoIterator<Item = Rule>,
-    ) -> Result {
-        self.executor.run_commands(
-            rules
-                .into_iter()
-                .filter(|rule| !self.rule_state.contains(&rule.rule_id()))
-                .sorted_unstable_by_key(|r| Reverse(r.node_index))
-                .map(|rule| {
-                    let statement = iptables_statement(&rule, &self.local_ip);
-                    format!("sudo iptables -w -t nat -A {statement}")
-                }),
-            &self.batch_opts,
-        )?;
+    ) -> Result<()> {
+        self.executor
+            .run_commands(
+                rules
+                    .into_iter()
+                    .filter(|rule| !self.rule_state.contains(&rule.rule_id()))
+                    .sorted_unstable_by_key(|r| Reverse(r.node_index))
+                    .map(|rule| {
+                        let statement =
+                            iptables_statement(&rule, &self.local_ip);
+                        format!("sudo iptables -w -t nat -A {statement}")
+                    }),
+                &self.batch_opts,
+            )
+            .map_err(|e| Error::BackendError(Box::new(e)))?;
         Ok(())
     }
 
-    fn delete_rules<P>(&mut self, pred: P) -> Result
+    fn delete_rules<P>(&mut self, pred: P) -> Result<()>
     where
         P: FnMut(&&str) -> bool,
     {
-        self.executor.run_commands(
-            self.rule_state.lines().filter(pred).map(append_to_delete),
-            &self.batch_opts,
-        )
+        self.executor
+            .run_commands(
+                self.rule_state.lines().filter(pred).map(append_to_delete),
+                &self.batch_opts,
+            )
+            .map_err(|e| Error::BackendError(Box::new(e)))
     }
 }
 

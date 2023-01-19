@@ -13,8 +13,8 @@ pub use node::*;
 pub use service::*;
 
 use crate::{
-    CoreNode, CoreService, INTERNAL_ANNOTATION, NODE_EXCLUDE_ANNOTATION,
-    NODE_EXCLUDE_LABEL,
+    CoreNode, CoreService, Error, INTERNAL_ANNOTATION,
+    NODE_EXCLUDE_ANNOTATION, NODE_EXCLUDE_LABEL,
 };
 
 #[enum_dispatch]
@@ -33,7 +33,7 @@ pub trait ResourceLike {
 }
 
 impl TryFrom<CoreService> for Resource {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(cs: CoreService) -> Result<Self, Self::Error> {
         Ok(Service {
@@ -47,11 +47,11 @@ impl TryFrom<CoreService> for Resource {
 }
 
 impl TryFrom<CoreNode> for Resource {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(cn: CoreNode) -> Result<Self, Self::Error> {
         let status = cn.status.clone().unwrap_or_default();
-        let addr = node_ip(status.clone())?;
+        let addr = node_ip(status.clone()).map_err(Error::NodeAddressError)?;
         let is_active = node_ready(status)
             && !cn.annotations().contains_key(NODE_EXCLUDE_ANNOTATION)
             && !cn.labels().contains_key(NODE_EXCLUDE_LABEL);

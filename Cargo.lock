@@ -323,6 +323,7 @@ dependencies = [
  "pin-project",
  "quickcheck",
  "sha256",
+ "thiserror",
  "tokio",
  "tokio-stream",
  "tracing",

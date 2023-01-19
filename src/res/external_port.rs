@@ -3,7 +3,8 @@ use std::str::FromStr;
 use anyhow::anyhow;
 use kube::ResourceExt;
 
-use crate::{CoreService, Error, ANNOTATION};
+use crate::{CoreService, ANNOTATION};
+use super::Error;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ExternalPort {
@@ -17,7 +18,16 @@ impl TryFrom<CoreService> for ExternalPort {
     fn try_from(cs: CoreService) -> Result<Self, Self::Error> {
         let anno = cs.annotations();
         if anno.contains_key(ANNOTATION) {
-            anno[ANNOTATION].parse().map_err(Error::ExternalPortParseError)
+            let annotation = anno[ANNOTATION].to_owned();
+            anno[ANNOTATION].parse().map_err(|e| Error::ServiceParseError {
+                inner: e,
+                annotation,
+                service_id: format!(
+                    "{}/{}",
+                    cs.namespace().unwrap_or_default(),
+                    cs.name_any()
+                ),
+            })
         } else {
             Ok(ExternalPort::Absent)
         }
@@ -31,10 +41,10 @@ impl FromStr for ExternalPort {
         let parts = s.split(':').collect::<Vec<_>>();
         match parts.len() {
             2 => Ok(Self::Spec {
-                host_port: parts[0].parse().map_err(Error::IntParseError)?,
-                node_port: parts[1].parse().map_err(Error::IntParseError)?,
+                host_port: parts[0].parse()?,
+                node_port: parts[1].parse()?,
             }),
-            _ => Err(anyhow!("unexpected number of annotation parts: {0}", s)),
+            _ => Err(anyhow!("unexpected number of annotation parts")),
         }
     }
 }

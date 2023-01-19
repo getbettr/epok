@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use cmd_lib::run_fun;
 use lazy_static::lazy_static;
 use tokio::time::Duration;
@@ -58,12 +56,6 @@ pub enum Error {
     KubeApiListError(#[source] kube::runtime::watcher::Error),
     #[error("failed to reconcile: {0}")]
     OperatorError(#[source] Box<Error>),
-    #[error("cannot parse external port annotation: {0}")]
-    ExternalPortParseError(#[source] <ExternalPort as FromStr>::Err),
-    #[error("cannot parse integer: {0}")]
-    IntParseError(#[source] <u16 as FromStr>::Err),
-    #[error("cannot extract node address: {0}")]
-    NodeAddressError(#[source] anyhow::Error),
     #[error("command execution failed: {0}")]
     ExecutorError(#[source] std::io::Error),
     #[error("could not apply iptables rules: {0}")]

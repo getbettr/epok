@@ -7,14 +7,15 @@ use std::any::TypeId;
 
 use enum_dispatch::enum_dispatch;
 use kube::ResourceExt;
+use thiserror::Error;
 pub use external_port::*;
 pub use interface::*;
 pub use node::*;
 pub use service::*;
 
 use crate::{
-    CoreNode, CoreService, Error, INTERNAL_ANNOTATION,
-    NODE_EXCLUDE_ANNOTATION, NODE_EXCLUDE_LABEL,
+    CoreNode, CoreService, INTERNAL_ANNOTATION, NODE_EXCLUDE_ANNOTATION,
+    NODE_EXCLUDE_LABEL,
 };
 
 #[enum_dispatch]
@@ -30,6 +31,25 @@ pub trait ResourceLike {
     fn id(&self) -> String;
     fn type_id(&self) -> TypeId;
     fn is_active(&self) -> bool;
+}
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error(
+        "invalid service (error: {inner}, annotation: {annotation}, service_id: {service_id})"
+    )]
+    ServiceParseError {
+        #[source]
+        inner: anyhow::Error,
+        annotation: String,
+        service_id: String,
+    },
+    #[error("invalid node (error: {inner}, node_id: {node_id})")]
+    NodeParseError {
+        #[source]
+        inner: anyhow::Error,
+        node_id: String,
+    },
 }
 
 impl TryFrom<CoreService> for Resource {
@@ -51,7 +71,9 @@ impl TryFrom<CoreNode> for Resource {
 
     fn try_from(cn: CoreNode) -> Result<Self, Self::Error> {
         let status = cn.status.clone().unwrap_or_default();
-        let addr = node_ip(status.clone()).map_err(Error::NodeAddressError)?;
+        let addr = node_ip(status.clone()).map_err(|e| {
+            Error::NodeParseError { inner: e, node_id: cn.name_any() }
+        })?;
         let is_active = node_ready(status)
             && !cn.annotations().contains_key(NODE_EXCLUDE_ANNOTATION)
             && !cn.labels().contains_key(NODE_EXCLUDE_LABEL);

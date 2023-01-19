@@ -1,15 +1,7 @@
-use std::sync::Arc;
-
 use clap::Parser;
 use kube::Client;
-use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
 use epok::*;
-
-struct App<B: Backend> {
-    state: State,
-    operator: Operator<B>,
-}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -43,14 +35,13 @@ async fn main() -> anyhow::Result<()> {
         interfaces.push(Interface::new("lo"));
     }
 
-    let app = Arc::new(Mutex::new(App {
-        state: State::default().with(interfaces),
-        operator: Operator::new(IptablesBackend::new(
-            opts.executor,
-            opts.batch_opts,
-            local_ip,
-        )),
-    }));
+    let mut state = State::default().with(interfaces);
+
+    let operator = Operator::new(IptablesBackend::new(
+        opts.executor,
+        opts.batch_opts,
+        local_ip,
+    ));
 
     let kube_client = Client::try_default().await?;
     let (services, nodes) = (
@@ -64,9 +55,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     while let Some(op_batch) = debounced.next().await {
-        let mut app = app.lock().await;
-
-        let prev_state = app.state.clone();
+        let prev_state = state.clone();
         let ops = op_batch.into_iter().flat_map(|ops| match ops {
             Ok(inner) => inner,
             Err(e) => {
@@ -74,9 +63,9 @@ async fn main() -> anyhow::Result<()> {
                 Ops(Vec::new())
             }
         });
-        apply(ops, &mut app.state);
+        apply(ops, &mut state);
 
-        if let Err(e) = app.operator.reconcile(&app.state, &prev_state) {
+        if let Err(e) = operator.reconcile(&state, &prev_state) {
             warn!("error during reconcile: {e:?}")
         }
     }

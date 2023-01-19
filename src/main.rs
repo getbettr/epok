@@ -1,13 +1,8 @@
 use std::sync::Arc;
 
-use backoff::{backoff::Backoff, ExponentialBackoff};
 use clap::Parser;
-use kube::{
-    api::ListParams,
-    runtime::{utils::StreamBackoff, watcher},
-    Api, Client,
-};
-use tokio::{sync::Mutex, time::Duration};
+use kube::Client;
+use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
 
 use epok::*;
@@ -49,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
         interfaces.push(Interface::new("lo"));
     }
 
-    let app = &Arc::new(Mutex::new(App {
+    let app = Arc::new(Mutex::new(App {
         state: State::default().with(interfaces),
         operator: Operator::new(IptablesBackend::new(
             opts.executor,
@@ -59,31 +54,17 @@ async fn main() -> anyhow::Result<()> {
     }));
 
     let kube_client = Client::try_default().await?;
+    let (services, nodes) = (
+        watch::<CoreService>(kube_client.clone()),
+        watch::<CoreNode>(kube_client),
+    );
 
-    let service_watcher = StreamBackoff::new(
-        watcher(
-            Api::<CoreService>::all(kube_client.clone()),
-            ListParams::default(),
-        ),
-        backoff(),
-    )
-    .map(|ev| ev.map(Ops::from));
-
-    let node_watcher = StreamBackoff::new(
-        watcher(
-            Api::<CoreNode>::all(kube_client.clone()),
-            ListParams::default(),
-        ),
-        backoff(),
-    )
-    .map(|ev| ev.map(Ops::from));
-
-    let mut debouncer = Box::pin(
-        Debounce::new(service_watcher.merge(node_watcher), OP_DEBOUNCE_TIMEOUT)
+    let mut debounced = Box::pin(
+        Debounce::new(services.merge(nodes), OP_DEBOUNCE_TIMEOUT)
             .with_capacity(OP_DEBOUNCE_CAPACITY),
     );
 
-    while let Some(op_batch) = debouncer.next().await {
+    while let Some(op_batch) = debounced.next().await {
         let mut app = app.lock().await;
 
         let prev_state = app.state.clone();
@@ -101,17 +82,6 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     Ok(())
-}
-
-fn backoff() -> impl Backoff + Send + Sync {
-    ExponentialBackoff {
-        initial_interval: Duration::from_millis(800),
-        max_interval: Duration::from_secs(30),
-        randomization_factor: 1.0,
-        multiplier: 2.0,
-        max_elapsed_time: Some(Duration::from_secs(60)),
-        ..ExponentialBackoff::default()
-    }
 }
 
 fn get_ip<I: AsRef<str>>(interface: I, executor: &Executor) -> String {

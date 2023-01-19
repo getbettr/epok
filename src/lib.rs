@@ -11,6 +11,7 @@ pub mod logging;
 pub mod operator;
 pub mod res;
 pub mod state;
+pub mod watcher;
 
 lazy_static! {
     static ref ARG_MAX: String = {
@@ -32,6 +33,7 @@ pub use logging::*;
 pub use operator::{Backend, Operator, Rule};
 pub use res::{ExternalPort, Interface, Node, Resource, ResourceLike, Service};
 pub use state::{apply, Op, Ops, State};
+pub use watcher::watch;
 
 pub const ANNOTATION: &str = "epok.getbetter.ro/externalport";
 pub const INTERNAL_ANNOTATION: &str = "epok.getbetter.ro/internal";

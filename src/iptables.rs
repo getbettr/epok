@@ -79,6 +79,10 @@ fn iptables_statement(rule: &Rule, local_ip: &Option<String>) -> String {
         None => "".to_owned(),
         Some(ip) => format!("-d {ip}", ip = ip),
     };
+    let s_range = match &rule.service.allow_range {
+        None => "".to_owned(),
+        Some(s) => format!("-s {s}"),
+    };
     let (chain, selector) = match rule.interface.name.as_str() {
         "lo" => (
             "OUTPUT",
@@ -92,7 +96,7 @@ fn iptables_statement(rule: &Rule, local_ip: &Option<String>) -> String {
         _ => (
             "PREROUTING",
             format!(
-                "-i {interface} -p tcp {d_ip} --dport {host_port} -m state --state NEW",
+                "-i {interface} {s_range} -p tcp {d_ip} --dport {host_port} -m state --state NEW",
                 interface = rule.interface.name,
             ),
         ),

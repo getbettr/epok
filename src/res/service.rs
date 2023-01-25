@@ -11,6 +11,7 @@ pub struct Service {
     pub namespace: String,
     pub external_port: ExternalPort,
     pub is_internal: bool,
+    pub allow_range: Option<String>,
 }
 
 impl ResourceLike for Service {

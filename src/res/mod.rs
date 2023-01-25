@@ -14,8 +14,8 @@ pub use node::*;
 pub use service::*;
 
 use crate::{
-    CoreNode, CoreService, INTERNAL_ANNOTATION, NODE_EXCLUDE_ANNOTATION,
-    NODE_EXCLUDE_LABEL,
+    CoreNode, CoreService, ALLOW_RANGE_ANNOTATION, INTERNAL_ANNOTATION,
+    NODE_EXCLUDE_ANNOTATION, NODE_EXCLUDE_LABEL,
 };
 
 #[enum_dispatch]
@@ -61,6 +61,10 @@ impl TryFrom<CoreService> for Resource {
             name: cs.name_any(),
             namespace: cs.namespace().unwrap_or_default(),
             is_internal: cs.annotations().contains_key(INTERNAL_ANNOTATION),
+            allow_range: cs
+                .annotations()
+                .get(ALLOW_RANGE_ANNOTATION)
+                .map(String::to_owned),
         }
         .into())
     }

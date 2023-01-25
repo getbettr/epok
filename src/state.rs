@@ -141,17 +141,24 @@ mod tests {
     use super::*;
     use crate::{ExternalPort, Node, Service};
 
+    fn mock_svc(
+        name: &str,
+        namespace: &str,
+        host_port: u16,
+        node_port: u16,
+    ) -> Service {
+        Service {
+            name: name.into(),
+            namespace: namespace.into(),
+            external_port: ExternalPort::Spec { host_port, node_port },
+            is_internal: false,
+            allow_range: None,
+        }
+    }
+
     #[test]
     fn apply_one() {
-        let svc = Service {
-            name: "foo".into(),
-            namespace: "bar".into(),
-            external_port: ExternalPort::Spec {
-                host_port: 123,
-                node_port: 456,
-            },
-            is_internal: false,
-        };
+        let svc = mock_svc("foo", "bar", 123, 456);
         let mut state = State::default();
 
         let ops = Ops::from(Event::Applied(svc.clone()));
@@ -163,15 +170,7 @@ mod tests {
 
     #[test]
     fn apply_remove_one() {
-        let svc = Service {
-            name: "foo".into(),
-            namespace: "bar".into(),
-            external_port: ExternalPort::Spec {
-                host_port: 123,
-                node_port: 456,
-            },
-            is_internal: false,
-        };
+        let svc = mock_svc("foo", "bar", 123, 456);
         let mut state = State::default();
 
         let ops = Ops::from(Event::Applied(svc.clone()))
@@ -185,35 +184,11 @@ mod tests {
     #[test]
     fn restart_many_apply_one() {
         let svcs = vec![
-            Service {
-                name: "foo".into(),
-                namespace: "bar".into(),
-                external_port: ExternalPort::Spec {
-                    host_port: 123,
-                    node_port: 456,
-                },
-                is_internal: false,
-            },
-            Service {
-                name: "baz".into(),
-                namespace: "quux".into(),
-                external_port: ExternalPort::Spec {
-                    host_port: 12321,
-                    node_port: 45654,
-                },
-                is_internal: false,
-            },
+            mock_svc("foo", "bar", 123, 456),
+            mock_svc("baz", "quux", 12321, 45654),
         ];
 
-        let applied = Service {
-            name: "foo".into(),
-            namespace: "bar".into(),
-            external_port: ExternalPort::Spec {
-                host_port: 333,
-                node_port: 444,
-            },
-            is_internal: false,
-        };
+        let applied = mock_svc("foo", "bar", 333, 444);
         let mut state = State::default();
 
         let ops = Ops::from(Event::Restarted(svcs.clone()))
@@ -228,25 +203,8 @@ mod tests {
 
     #[test]
     fn with_diff() {
-        let svc1 = Service {
-            name: "foo".into(),
-            namespace: "bar".into(),
-            external_port: ExternalPort::Spec {
-                host_port: 333,
-                node_port: 444,
-            },
-            is_internal: false,
-        };
-
-        let svc2 = Service {
-            name: "foo".into(),
-            namespace: "bar".into(),
-            external_port: ExternalPort::Spec {
-                host_port: 123,
-                node_port: 321,
-            },
-            is_internal: false,
-        };
+        let svc1 = mock_svc("foo", "bar", 333, 444);
+        let svc2 = mock_svc("foo", "bar", 123, 321);
 
         let node1 = Node {
             name: "node0".into(),

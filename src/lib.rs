@@ -40,6 +40,7 @@ pub use watcher::watch;
 
 pub const ANNOTATION: &str = "epok.getbetter.ro/externalport";
 pub const INTERNAL_ANNOTATION: &str = "epok.getbetter.ro/internal";
+pub const ALLOW_RANGE_ANNOTATION: &str = "epok.getbetter.ro/allow-range";
 pub const NODE_EXCLUDE_ANNOTATION: &str = "epok.getbetter.ro/exclude";
 pub const NODE_EXCLUDE_LABEL: &str = "epok_exclude";
 pub const OP_DEBOUNCE_TIMEOUT: Duration = Duration::from_millis(100);

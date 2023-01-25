@@ -52,7 +52,11 @@ impl Rule {
             ExternalPort::Absent => "".to_string(),
         };
         port_hash.truncate(16);
-        format!("{svc_hash}{port_hash}{}", self.service.is_internal)
+        format!(
+            "{svc_hash}{port_hash}{}{}",
+            self.service.is_internal,
+            self.service.allow_range.to_owned().unwrap_or_else(|| "".into())
+        )
     }
 }
 
@@ -384,6 +388,7 @@ mod tests {
             namespace: "bar".to_string(),
             external_port,
             is_internal: false,
+            allow_range: None,
         }
     }
 }

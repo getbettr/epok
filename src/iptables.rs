@@ -77,7 +77,7 @@ fn iptables_statement(rule: &Rule, local_ip: &Option<String>) -> String {
         rule.service.get_ports().expect("invalid service");
     let d_ip = match local_ip {
         None => "".to_owned(),
-        Some(ip) => format!("-d {ip}", ip = ip),
+        Some(ip) => format!("-d {ip}"),
     };
     let s_range = match &rule.service.allow_range {
         None => "".to_owned(),

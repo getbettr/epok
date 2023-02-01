@@ -71,9 +71,13 @@ async fn main() -> anyhow::Result<()> {
 
 fn get_ip<I: AsRef<str>>(interface: I, executor: &Executor) -> String {
     let interface = interface.as_ref();
-    executor
+    let local_ip = executor
         .run_fun(format!(
             "ip -f inet addr show {interface} | sed -En -e 's/.*inet ([0-9.]+).*/\\1/p'"
         ))
-        .unwrap_or_else(|_| panic!("could not get IPv4 address of interface {interface}"))
+        .unwrap_or_else(|_| panic!("could not get IPv4 address of interface {interface}"));
+    if local_ip == *"" {
+        panic!("could not get IPv4 address of interface {interface}");
+    }
+    local_ip
 }

@@ -37,13 +37,12 @@ impl Display for PortSpec {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ExternalPort {
-    Specs(Vec<PortSpec>),
-    Absent,
+#[derive(Default, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ExternalPorts {
+    pub specs: Vec<PortSpec>,
 }
 
-impl TryFrom<CoreService> for ExternalPort {
+impl TryFrom<CoreService> for ExternalPorts {
     type Error = Error;
 
     fn try_from(cs: CoreService) -> Result<Self, Self::Error> {
@@ -60,12 +59,12 @@ impl TryFrom<CoreService> for ExternalPort {
                 ),
             })
         } else {
-            Ok(ExternalPort::Absent)
+            Ok(Self::default())
         }
     }
 }
 
-impl FromStr for ExternalPort {
+impl FromStr for ExternalPorts {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -98,6 +97,6 @@ impl FromStr for ExternalPort {
             return Err(anyhow!("malformed port spec"));
         }
 
-        Ok(Self::Specs(ports.into_iter().map(|res| res.unwrap()).collect()))
+        Ok(Self { specs: ports.into_iter().map(|res| res.unwrap()).collect() })
     }
 }

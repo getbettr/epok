@@ -3,9 +3,7 @@ use std::cell::RefCell;
 use itertools::{iproduct, Itertools};
 use sha256::digest;
 
-use crate::{
-    logging::*, Error, ExternalPort, Interface, Node, Result, Service, State,
-};
+use crate::{logging::*, Error, Interface, Node, Result, Service, State};
 
 pub trait Backend {
     fn read_state(&mut self);
@@ -45,10 +43,7 @@ impl Rule {
     pub fn service_id(&self) -> String {
         let mut svc_hash = digest(self.service.fqn());
         svc_hash.truncate(16);
-        let port_hash = match &self.service.external_ports {
-            ExternalPort::Specs(specs) => specs.iter().join("::"),
-            ExternalPort::Absent => "".to_string(),
-        };
+        let port_hash = &self.service.external_ports.specs.iter().join("::");
         digest(format!(
             "{svc_hash}{port_hash}{}{}",
             self.service.is_internal,
@@ -153,7 +148,7 @@ fn make_rules(state: &State) -> Vec<Rule> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{res::Proto, PortSpec};
+    use crate::{res::Proto, ExternalPorts, PortSpec};
 
     #[derive(Default)]
     struct TestBackend {
@@ -353,20 +348,23 @@ mod tests {
         let state0 = empty_state().with([single_port_service(123, 456)]);
         operator.reconcile(&state0, &empty_state()).unwrap();
 
-        let state1 =
-            state0.clone().with([service_with_ep(ExternalPort::Specs(vec![
+        let state1 = state0.clone().with([service_with_ep(ExternalPorts {
+            specs: vec![
                 PortSpec::new_tcp(123, 456),
                 PortSpec::new_tcp(321, 654),
-            ]))]);
+            ],
+        })]);
         operator.reconcile(&state1, &state0).unwrap();
 
         let rules = operator.get_rules();
         assert_eq!(
             rules[0].service.external_ports,
-            ExternalPort::Specs(vec![
-                PortSpec::new_tcp(123, 456),
-                PortSpec::new_tcp(321, 654),
-            ])
+            ExternalPorts {
+                specs: vec![
+                    PortSpec::new_tcp(123, 456),
+                    PortSpec::new_tcp(321, 654),
+                ],
+            }
         );
     }
 
@@ -385,10 +383,14 @@ mod tests {
             single_port_spec(123, 456)
         );
 
-        let state1 =
-            state0.clone().with([service_with_ep(ExternalPort::Specs(vec![
-                PortSpec { host_port: 123, node_port: 456, proto: Proto::Udp },
-            ]))]);
+        let state1 = state0.clone().with([service_with_ep(ExternalPorts {
+            specs: vec![PortSpec {
+                host_port: 123,
+                node_port: 456,
+                proto: Proto::Udp,
+            }],
+        })]);
+
         operator.reconcile(&state1, &state0).unwrap();
 
         let rules = operator.get_rules();
@@ -396,11 +398,13 @@ mod tests {
 
         assert_eq!(
             rules[0].service.external_ports,
-            ExternalPort::Specs(vec![PortSpec {
-                host_port: 123,
-                node_port: 456,
-                proto: Proto::Udp
-            }])
+            ExternalPorts {
+                specs: vec![PortSpec {
+                    host_port: 123,
+                    node_port: 456,
+                    proto: Proto::Udp,
+                }],
+            }
         );
     }
 
@@ -412,15 +416,15 @@ mod tests {
         }])
     }
 
-    fn single_port_spec(host_port: u16, node_port: u16) -> ExternalPort {
-        ExternalPort::Specs(vec![PortSpec::new_tcp(host_port, node_port)])
+    fn single_port_spec(host_port: u16, node_port: u16) -> ExternalPorts {
+        ExternalPorts { specs: vec![PortSpec::new_tcp(host_port, node_port)] }
     }
 
     fn single_port_service(host_port: u16, node_port: u16) -> Service {
         service_with_ep(single_port_spec(host_port, node_port))
     }
 
-    fn service_with_ep(external_ports: ExternalPort) -> Service {
+    fn service_with_ep(external_ports: ExternalPorts) -> Service {
         Service {
             name: "foo".to_string(),
             namespace: "bar".to_string(),

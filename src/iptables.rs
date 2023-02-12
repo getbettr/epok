@@ -3,8 +3,8 @@ use std::cmp::Reverse;
 use itertools::Itertools;
 
 use crate::{
-    res::Proto, Backend, BatchOpts, Error, Executor, ExternalPort, PortSpec,
-    Result, Rule, RULE_MARKER, SERVICE_MARKER,
+    res::Proto, Backend, BatchOpts, Error, Executor, PortSpec, Result, Rule,
+    RULE_MARKER, SERVICE_MARKER,
 };
 
 pub struct IptablesBackend {
@@ -33,17 +33,20 @@ impl Backend for IptablesBackend {
                     .filter(|rule| !self.rule_state.contains(&rule.rule_id()))
                     .sorted_unstable_by_key(|r| Reverse(r.node_index))
                     .flat_map(|rule| {
-                        match iptables_statements(&rule, &self.local_ip) {
-                            None => Vec::new(),
-                            Some(statements) => statements
-                                .map(|stmt| {
-                                    format!(
-                                        "sudo iptables -w -t nat -A {stmt}"
-                                    )
-                                })
-                                .collect(),
-                        }
-                    }),
+                        rule.service
+                            .external_ports
+                            .specs
+                            .iter()
+                            .map(|port_spec| {
+                                iptables_statement(
+                                    port_spec,
+                                    &rule,
+                                    &self.local_ip,
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .map(|stmt| format!("sudo iptables -w -t nat -A {stmt}")),
                 &self.batch_opts,
             )
             .map_err(|e| Error::BackendError(Box::new(e)))?;
@@ -132,18 +135,4 @@ fn iptables_statement(
         node_addr = rule.node.addr,
     );
     format!("{chain} {selector} {balance} {comment} {jump}")
-}
-
-fn iptables_statements<'r, 'l: 'r>(
-    rule: &'r Rule,
-    local_ip: &'l Option<String>,
-) -> Option<impl Iterator<Item = String> + 'r> {
-    match &rule.service.external_ports {
-        ExternalPort::Specs(specs) => {
-            Some(specs.iter().map(|port_spec| {
-                iptables_statement(port_spec, rule, local_ip)
-            }))
-        }
-        ExternalPort::Absent => None,
-    }
 }

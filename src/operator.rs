@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use itertools::iproduct;
+use itertools::{iproduct, Itertools};
 use sha256::digest;
 
 use crate::{
@@ -45,18 +45,15 @@ impl Rule {
     pub fn service_id(&self) -> String {
         let mut svc_hash = digest(self.service.fqn());
         svc_hash.truncate(16);
-        let mut port_hash = match self.service.external_port {
-            ExternalPort::Spec { host_port, node_port } => {
-                format!("::{}", digest(format!("{host_port}::{node_port}")))
-            }
+        let port_hash = match &self.service.external_ports {
+            ExternalPort::Specs(specs) => specs.iter().join("::"),
             ExternalPort::Absent => "".to_string(),
         };
-        port_hash.truncate(16);
-        format!(
+        digest(format!(
             "{svc_hash}{port_hash}{}{}",
             self.service.is_internal,
             self.service.allow_range.to_owned().unwrap_or_else(|| "".into())
-        )
+        ))
     }
 }
 
@@ -156,6 +153,7 @@ fn make_rules(state: &State) -> Vec<Rule> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{res::Proto, PortSpec};
 
     #[derive(Default)]
     struct TestBackend {
@@ -213,32 +211,24 @@ mod tests {
 
         let state0 = empty_state();
 
-        let state1 =
-            state0.clone().with([service_with_ep(ExternalPort::Spec {
-                host_port: 123,
-                node_port: 456,
-            })]);
+        let state1 = state0.clone().with([single_port_service(123, 456)]);
         operator.reconcile(&state1, &state0).unwrap();
 
         let rules = operator.get_rules();
         assert_eq!(rules.len(), 1);
         assert_eq!(
-            rules[0].service.external_port,
-            ExternalPort::Spec { host_port: 123, node_port: 456 }
+            rules[0].service.external_ports,
+            single_port_spec(123, 456)
         );
 
-        let state2 =
-            state1.clone().with([service_with_ep(ExternalPort::Spec {
-                host_port: 1234,
-                node_port: 456,
-            })]);
+        let state2 = state1.clone().with([single_port_service(1234, 456)]);
         operator.reconcile(&state2, &state1).unwrap();
 
         let rules = operator.get_rules();
         assert_eq!(rules.len(), 1);
         assert_eq!(
-            rules[0].service.external_port,
-            ExternalPort::Spec { host_port: 1234, node_port: 456 }
+            rules[0].service.external_ports,
+            single_port_spec(1234, 456)
         );
     }
 
@@ -249,10 +239,7 @@ mod tests {
 
         let state0 = empty_state().with([Interface::new("eth0").external()]);
 
-        let svc = service_with_ep(ExternalPort::Spec {
-            host_port: 123,
-            node_port: 456,
-        });
+        let svc = single_port_service(123, 456);
         let state1 = state0.clone().with([svc.clone()]);
         operator.reconcile(&state1, &state0).unwrap();
 
@@ -260,8 +247,8 @@ mod tests {
         let rules = operator.get_rules();
         assert_eq!(rules.len(), 1);
         assert_eq!(
-            rules[0].service.external_port,
-            ExternalPort::Spec { host_port: 123, node_port: 456 }
+            rules[0].service.external_ports,
+            single_port_spec(123, 456)
         );
 
         // However once the service goes "internal" the rule should be gone
@@ -277,8 +264,8 @@ mod tests {
         let rules = operator.get_rules();
         assert_eq!(rules.len(), 1);
         assert_eq!(
-            rules[0].service.external_port,
-            ExternalPort::Spec { host_port: 123, node_port: 456 }
+            rules[0].service.external_ports,
+            single_port_spec(123, 456)
         );
     }
 
@@ -289,11 +276,7 @@ mod tests {
 
         let state0 = empty_state();
 
-        let state1 =
-            state0.clone().with([service_with_ep(ExternalPort::Spec {
-                host_port: 123,
-                node_port: 456,
-            })]);
+        let state1 = state0.clone().with([single_port_service(123, 456)]);
         operator.reconcile(&state1, &state0).unwrap();
 
         let state2 = state1.clone().with(Vec::<Node>::new());
@@ -310,14 +293,8 @@ mod tests {
 
         let state0 = empty_state();
         let state1 = state0.clone().with([
-            service_with_ep(ExternalPort::Spec {
-                host_port: 123,
-                node_port: 456,
-            }),
-            service_with_ep(ExternalPort::Spec {
-                host_port: 789,
-                node_port: 654,
-            }),
+            single_port_service(123, 456),
+            single_port_service(789, 654),
         ]);
         operator.reconcile(&state1, &state0).unwrap();
 
@@ -336,16 +313,14 @@ mod tests {
                     is_active: true,
                 },
             ])
-            .with([service_with_ep(ExternalPort::Spec {
-                host_port: 789,
-                node_port: 654,
-            })]);
+            .with([single_port_service(789, 654)]);
         operator.reconcile(&state2, &state1).unwrap();
 
         let rules = operator.get_rules();
         assert_eq!(rules.len(), 2);
-        assert!(rules.iter().all(|x| x.service.external_port
-            == ExternalPort::Spec { host_port: 789, node_port: 654 }))
+        assert!(rules
+            .iter()
+            .all(|x| x.service.external_ports == single_port_spec(789, 654)));
     }
 
     #[test]
@@ -353,18 +328,14 @@ mod tests {
         let backend = TestBackend::default();
         let operator = Operator::new(backend);
 
-        let state0 =
-            empty_state().with([service_with_ep(ExternalPort::Spec {
-                host_port: 123,
-                node_port: 456,
-            })]);
+        let state0 = empty_state().with([single_port_service(123, 456)]);
         operator.reconcile(&state0, &empty_state()).unwrap();
 
         let rules = operator.get_rules();
         assert_eq!(rules.len(), 1);
         assert_eq!(
-            rules[0].service.external_port,
-            ExternalPort::Spec { host_port: 123, node_port: 456 }
+            rules[0].service.external_ports,
+            single_port_spec(123, 456)
         );
 
         let state1 = state0.clone().with(Vec::<Node>::new());
@@ -372,6 +343,65 @@ mod tests {
 
         let rules = operator.get_rules();
         assert_eq!(rules.len(), 0);
+    }
+
+    #[test]
+    fn it_supports_multiple_ports() {
+        let backend = TestBackend::default();
+        let operator = Operator::new(backend);
+
+        let state0 = empty_state().with([single_port_service(123, 456)]);
+        operator.reconcile(&state0, &empty_state()).unwrap();
+
+        let state1 =
+            state0.clone().with([service_with_ep(ExternalPort::Specs(vec![
+                PortSpec::new_tcp(123, 456),
+                PortSpec::new_tcp(321, 654),
+            ]))]);
+        operator.reconcile(&state1, &state0).unwrap();
+
+        let rules = operator.get_rules();
+        assert_eq!(
+            rules[0].service.external_ports,
+            ExternalPort::Specs(vec![
+                PortSpec::new_tcp(123, 456),
+                PortSpec::new_tcp(321, 654),
+            ])
+        );
+    }
+
+    #[test]
+    fn it_supports_udp() {
+        let backend = TestBackend::default();
+        let operator = Operator::new(backend);
+
+        let state0 = empty_state().with([single_port_service(123, 456)]);
+        operator.reconcile(&state0, &empty_state()).unwrap();
+
+        let rules = operator.get_rules();
+        assert_eq!(rules.len(), 1);
+        assert_eq!(
+            rules[0].service.external_ports,
+            single_port_spec(123, 456)
+        );
+
+        let state1 =
+            state0.clone().with([service_with_ep(ExternalPort::Specs(vec![
+                PortSpec { host_port: 123, node_port: 456, proto: Proto::Udp },
+            ]))]);
+        operator.reconcile(&state1, &state0).unwrap();
+
+        let rules = operator.get_rules();
+        assert_eq!(rules.len(), 1);
+
+        assert_eq!(
+            rules[0].service.external_ports,
+            ExternalPort::Specs(vec![PortSpec {
+                host_port: 123,
+                node_port: 456,
+                proto: Proto::Udp
+            }])
+        );
     }
 
     fn empty_state() -> State {
@@ -382,11 +412,19 @@ mod tests {
         }])
     }
 
-    fn service_with_ep(external_port: ExternalPort) -> Service {
+    fn single_port_spec(host_port: u16, node_port: u16) -> ExternalPort {
+        ExternalPort::Specs(vec![PortSpec::new_tcp(host_port, node_port)])
+    }
+
+    fn single_port_service(host_port: u16, node_port: u16) -> Service {
+        service_with_ep(single_port_spec(host_port, node_port))
+    }
+
+    fn service_with_ep(external_ports: ExternalPort) -> Service {
         Service {
             name: "foo".to_string(),
             namespace: "bar".to_string(),
-            external_port,
+            external_ports,
             is_internal: false,
             allow_range: None,
         }

@@ -1,7 +1,5 @@
 use std::any::TypeId;
 
-use anyhow::anyhow;
-
 use super::ExternalPort;
 use crate::ResourceLike;
 
@@ -9,7 +7,7 @@ use crate::ResourceLike;
 pub struct Service {
     pub name: String,
     pub namespace: String,
-    pub external_port: ExternalPort,
+    pub external_ports: ExternalPort,
     pub is_internal: bool,
     pub allow_range: Option<String>,
 }
@@ -26,16 +24,7 @@ impl Service {
     pub fn fqn(&self) -> String { format!("{}/{}", self.namespace, self.name) }
 
     pub fn has_external_port(&self) -> bool {
-        !matches!(self.external_port, ExternalPort::Absent)
-    }
-
-    pub fn get_ports(&self) -> Result<(u16, u16), anyhow::Error> {
-        match self.external_port {
-            ExternalPort::Spec { host_port, node_port } => {
-                Ok((host_port, node_port))
-            }
-            ExternalPort::Absent => Err(anyhow!("invalid service")),
-        }
+        !matches!(self.external_ports, ExternalPort::Absent)
     }
 
     pub fn internal(self) -> Self { Self { is_internal: true, ..self } }

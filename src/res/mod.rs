@@ -57,7 +57,7 @@ impl TryFrom<CoreService> for Resource {
 
     fn try_from(cs: CoreService) -> Result<Self, Self::Error> {
         Ok(Service {
-            external_port: cs.clone().try_into()?,
+            external_ports: cs.clone().try_into()?,
             name: cs.name_any(),
             namespace: cs.namespace().unwrap_or_default(),
             is_internal: cs.annotations().contains_key(INTERNAL_ANNOTATION),

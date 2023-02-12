@@ -33,7 +33,7 @@ pub use k8s_openapi::api::core::v1::{
 pub use logging::*;
 pub use operator::{Backend, Operator, Rule};
 pub use res::{
-    ExternalPort, Interface, Node, Resource, ResourceLike, Service,
+    ExternalPort, Interface, Node, PortSpec, Resource, ResourceLike, Service,
 };
 pub use state::{apply, Op, Ops, State};
 pub use watcher::watch;

@@ -139,7 +139,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ExternalPort, Node, Service};
+    use crate::{ExternalPort, Node, PortSpec, Service};
 
     fn mock_svc(
         name: &str,
@@ -150,7 +150,9 @@ mod tests {
         Service {
             name: name.into(),
             namespace: namespace.into(),
-            external_port: ExternalPort::Spec { host_port, node_port },
+            external_ports: ExternalPort::Specs(vec![PortSpec::new_tcp(
+                host_port, node_port,
+            )]),
             is_internal: false,
             allow_range: None,
         }

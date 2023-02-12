@@ -3,8 +3,8 @@ use std::cmp::Reverse;
 use itertools::Itertools;
 
 use crate::{
-    Backend, BatchOpts, Error, Executor, Result, Rule, RULE_MARKER,
-    SERVICE_MARKER,
+    res::Proto, Backend, BatchOpts, Error, Executor, ExternalPort, PortSpec,
+    Result, Rule, RULE_MARKER, SERVICE_MARKER,
 };
 
 pub struct IptablesBackend {
@@ -32,10 +32,17 @@ impl Backend for IptablesBackend {
                     .into_iter()
                     .filter(|rule| !self.rule_state.contains(&rule.rule_id()))
                     .sorted_unstable_by_key(|r| Reverse(r.node_index))
-                    .map(|rule| {
-                        let statement =
-                            iptables_statement(&rule, &self.local_ip);
-                        format!("sudo iptables -w -t nat -A {statement}")
+                    .flat_map(|rule| {
+                        match iptables_statements(&rule, &self.local_ip) {
+                            None => Vec::new(),
+                            Some(statements) => statements
+                                .map(|stmt| {
+                                    format!(
+                                        "sudo iptables -w -t nat -A {stmt}"
+                                    )
+                                })
+                                .collect(),
+                        }
                     }),
                 &self.batch_opts,
             )
@@ -72,9 +79,12 @@ fn append_to_delete(rule: &str) -> String {
     format!("sudo iptables -w -t nat -D {}", rule_parts.join(" "))
 }
 
-fn iptables_statement(rule: &Rule, local_ip: &Option<String>) -> String {
-    let (host_port, node_port) =
-        rule.service.get_ports().expect("invalid service");
+fn iptables_statement(
+    port_spec: &PortSpec,
+    rule: &Rule,
+    local_ip: &Option<String>,
+) -> String {
+    let (host_port, node_port) = (port_spec.host_port, port_spec.node_port);
     let d_ip = match local_ip {
         None => "".to_owned(),
         Some(ip) => format!("-d {ip}"),
@@ -83,11 +93,16 @@ fn iptables_statement(rule: &Rule, local_ip: &Option<String>) -> String {
         None => "".to_owned(),
         Some(s) => format!("-s {s}"),
     };
+    let (proto, state) = match &port_spec.proto {
+        Proto::Tcp => ("-p tcp", "-m state --state NEW"),
+        Proto::Udp => ("-p udp", ""),
+    };
+
     let (chain, selector) = match rule.interface.name.as_str() {
         "lo" => (
             "OUTPUT",
             format!(
-                "-o lo -p tcp -d {local_ip} --dport {host_port} -m state --state NEW",
+                "-o lo -d {local_ip} {proto} --dport {host_port} {state}",
                 local_ip = local_ip
                     .as_ref()
                     .expect("should not have a local rule without local IP")
@@ -96,7 +111,7 @@ fn iptables_statement(rule: &Rule, local_ip: &Option<String>) -> String {
         _ => (
             "PREROUTING",
             format!(
-                "-i {interface} {s_range} -p tcp {d_ip} --dport {host_port} -m state --state NEW",
+                "-i {interface} {s_range} {d_ip} {proto} --dport {host_port} {state}",
                 interface = rule.interface.name,
             ),
         ),
@@ -117,4 +132,18 @@ fn iptables_statement(rule: &Rule, local_ip: &Option<String>) -> String {
         node_addr = rule.node.addr,
     );
     format!("{chain} {selector} {balance} {comment} {jump}")
+}
+
+fn iptables_statements<'r, 'l: 'r>(
+    rule: &'r Rule,
+    local_ip: &'l Option<String>,
+) -> Option<impl Iterator<Item = String> + 'r> {
+    match &rule.service.external_ports {
+        ExternalPort::Specs(specs) => {
+            Some(specs.iter().map(|port_spec| {
+                iptables_statement(port_spec, rule, local_ip)
+            }))
+        }
+        ExternalPort::Absent => None,
+    }
 }

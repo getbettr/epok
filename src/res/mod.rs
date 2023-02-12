@@ -1,4 +1,4 @@
-mod external_port;
+mod external_ports;
 mod interface;
 mod node;
 mod service;
@@ -8,7 +8,7 @@ use std::any::TypeId;
 use enum_dispatch::enum_dispatch;
 use kube::ResourceExt;
 use thiserror::Error;
-pub use external_port::*;
+pub use external_ports::*;
 pub use interface::*;
 pub use node::*;
 pub use service::*;

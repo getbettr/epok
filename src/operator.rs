@@ -44,11 +44,13 @@ impl Rule {
         let mut svc_hash = digest(self.service.fqn());
         svc_hash.truncate(16);
         let port_hash = &self.service.external_ports.specs.iter().join("::");
-        digest(format!(
+        let mut service_id = digest(format!(
             "{svc_hash}{port_hash}{}{}",
             self.service.is_internal,
             self.service.allow_range.to_owned().unwrap_or_else(|| "".into())
-        ))
+        ));
+        service_id.truncate(16);
+        service_id
     }
 }
 

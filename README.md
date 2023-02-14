@@ -1,11 +1,34 @@
-# epok
+# EPOK
 
-epok is an external port operator for self-hosted kubernetes clusters. Define a 
-`getbetter.ro/externalport: "25:2025"` annotation on your service and epok
-will handle the `iptables` rules to forward port `25` on your host machine to
+EPOK is an external port operator for self-hosted Kubernetes clusters. 
+
+It exists mainly because:
+
+* I wanted to get some experience writing Kubernetes operators using Rust.
+* I'm operating a couple of homelab Kubernetes clusters where Kubernetes nodes 
+run as virtualized workloads (LXC containers or VMs) on a single host machine.
+* I needed a way to transparently forward traffic from the host machine to
+`NodePort`-type services "residing" on the worker nodes.
+
+EPOK can be deployed either directly on the host machine, or inside the cluster
+itself. If deployed inside the cluster it will need a way to communicate with
+the host machine in order to alter its `iptables` rules. See the section on 
+using the [SSH Executor](#ssh-executor) for details.
+
+Define a `getbetter.ro/externalports: "25:2025"` annotation on your service and 
+EPOK will handle the `iptables` rules to forward port `25` on your host machine to
 [NodePort](https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types) `2025` on your kube nodes.
 
 ## Usage
+
+To function correctly, EPOK needs to know which interfaces on the host machine
+to forward traffic from. This is specified via the `-i` or `--interfaces` CLI
+option.
+
+It also needs to know which executor to use:
+
+* `local` when deployed on the host machine
+* `ssh` when deployed inside the cluster
 
 ```
 epok [OPTIONS] --interfaces <INTERFACES> <EXECUTOR>
@@ -13,6 +36,9 @@ epok [OPTIONS] --interfaces <INTERFACES> <EXECUTOR>
 OPTIONS:
     -i, --interfaces <INTERFACES>
             Comma-separated list of interfaces to forward packets from [env: EPOK_INTERFACES=]
+
+        --external-interface <EXTERNAL_INTERFACE>
+            Internal services won't be reachable through this interface [env: EPOK_EXTERNAL_INTERFACE=]
 
         --batch-commands <batch-commands>
             Batch the execution of iptables commands [env: EPOK_BATCH_COMMANDS=] [default: true]
@@ -27,16 +53,47 @@ OPTIONS:
             Print version information
 
 EXECUTORS:
-    local    Execute commands locally
-    ssh      Execute commands through ssh
+    local    Execute commands locally - use this executor when running epok directly on the host machine
+    ssh      Execute commands through ssh - use this executor when running epok inside the Kubernetes cluster
 ```
 
-### SSH Executor
+## Annotations & labels
 
-This is a hack for allowing epok deployed in a self-hosted cluster to talk
-to the host machine and manipulate its `iptables` rules.
+Annotations namespaced under `epok.getbetter.ro` can be used to tell EPOK about 
+Kubernetes services and nodes it should (or shouldn't) take into account.
 
-It's best to use a separate account for this:
+Services can be annotated with:
+
+* `epok.getbetter.ro/externalports` - use this on a `NodePort`-type service
+to tell EPOK which ports it should forward. It expects a comma-separated list
+of port mappings. For example: `epok.getbetter.ro/externalports: 22:2022,25:2025`.
+Single port mappings are supported - just omit the comma. UDP is supported by 
+suffixing the mapping with `:udp` - for example: `epok.getbetter.ro/externalports: 53:8053:udp`
+* `epok.getbetter.ro/internal` - tells EPOK that this is an "internal" service.
+If an external interface has been specified (via the `--external-interface` option)
+EPOK will _not_ allow the service to be reachable from it. Useful for when 
+you're connecting to the host machine via a VPN tunnel and want certain services
+to be reachable only through the tunnel.
+* `epok.getbetter.ro/allow-range` - CIDR range of IPv4 addresses allowed to talk 
+to the service
+
+Nodes can be excluded from the ruleset by:
+
+* using the `epok.getbetter.ro/exclude` annotation with any value
+* using the `epok_exclude` label
+
+## SSH Executor
+
+When deployed inside the cluster, EPOK needs a way to communicate to the host
+machine in order to update the `iptables` ruleset. The simplest solution I 
+could conjure was to simply set up a dedicated user account on the host
+that can only manipulate `iptables` rules and use SSH to connect.
+
+<p align="center">
+  <img src="docs/epok_ssh.svg" alt="Using EPOK with the SSH executor" width="400" />
+</p>
+
+To set up the host EPOK user:
 
 ```shell
 export EPOK_USER=epok
@@ -45,7 +102,8 @@ export EPOK_USER=epok
 sudo useradd --create-home $EPOK_USER; sudo passwd -d $EPOK_USER
 
 # restrict the epok user to iptables + iptables-save commands
-echo "%${EPOK_USER} ALL=(ALL) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-save" | sudo EDITOR='tee' VISUAL='tee' visudo -f /etc/sudoers.d/$EPOK_USER
+echo "%${EPOK_USER} ALL=(ALL) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-save" \
+  | sudo EDITOR='tee' VISUAL='tee' visudo -f /etc/sudoers.d/$EPOK_USER
 
 # create and authorize an SSH key
 sudo su $EPOK_USER -c ssh-keygen
@@ -63,7 +121,7 @@ To test epok connectivity:
 epok -i eth0 ssh --host $EPOK_USER@host_machine --key /path/to/private.key
 ```
 
-### Kubernetes deployment example
+## Deployment example
 
 Set up some configuration values:
 
@@ -72,7 +130,7 @@ cat > epok.config <<EOF
 # Where should we pull base images from?
 DOCKER_HUB=docker.io
 
-# Where should we push the docker image? Should be reachable from cluster.
+# Where should we push the docker image? Should be reachable from the cluster.
 EPOK_IMAGE="my.docker.registry/epok:latest"
 
 # What interfaces should epok forward packets from?

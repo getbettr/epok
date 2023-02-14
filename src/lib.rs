@@ -38,7 +38,7 @@ pub use res::{
 pub use state::{apply, Op, Ops, State};
 pub use watcher::watch;
 
-pub const ANNOTATION: &str = "epok.getbetter.ro/externalport";
+pub const ANNOTATION: &str = "epok.getbetter.ro/externalports";
 pub const INTERNAL_ANNOTATION: &str = "epok.getbetter.ro/internal";
 pub const ALLOW_RANGE_ANNOTATION: &str = "epok.getbetter.ro/allow-range";
 pub const NODE_EXCLUDE_ANNOTATION: &str = "epok.getbetter.ro/exclude";

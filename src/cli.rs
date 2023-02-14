@@ -23,6 +23,7 @@ pub struct Opts {
     )]
     pub interfaces: String,
 
+    /// Internal services won't be reachable through this interface
     #[clap(long, env = "EPOK_EXTERNAL_INTERFACE")]
     pub external_interface: Option<String>,
 
@@ -47,9 +48,11 @@ pub struct BatchOpts {
 #[derive(Parser, Debug)]
 #[clap(long_about = "En taro Adun")]
 pub enum Executor<Ssh: Args = SshHost> {
-    /// Execute commands locally
+    /// Execute commands locally - use this executor when running epok directly
+    /// on the host machine.
     Local,
-    /// Execute commands through ssh
+    /// Execute commands through ssh - use this executor when running epok
+    /// inside the Kubernetes cluster.
     Ssh(Ssh),
 }
 

@@ -1,6 +1,6 @@
-# EPOK
+# Epok
 
-EPOK is an external port operator for self-hosted Kubernetes clusters. 
+Epok is an external port operator for self-hosted Kubernetes clusters. 
 
 It exists mainly because:
 
@@ -10,18 +10,14 @@ run as virtualized workloads (LXC containers or VMs) on a single host machine.
 * I needed a way to transparently forward traffic from the host machine to
 `NodePort`-type services "residing" on the worker nodes.
 
-EPOK can be deployed either directly on the host machine, or inside the cluster
+Epok can be deployed either directly on the host machine, or inside the cluster
 itself. If deployed inside the cluster it will need a way to communicate with
 the host machine in order to alter its `iptables` rules. See the section on 
 using the [SSH Executor](#ssh-executor) for details.
 
-Define a `getbetter.ro/externalports: "25:2025"` annotation on your service and 
-EPOK will handle the `iptables` rules to forward port `25` on your host machine to
-[NodePort](https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types) `2025` on your kube nodes.
-
 ## Usage
 
-To function correctly, EPOK needs to know which interfaces on the host machine
+To function correctly, Epok needs to know which interfaces on the host machine
 to forward traffic from. This is specified via the `-i` or `--interfaces` CLI
 option.
 
@@ -59,19 +55,19 @@ EXECUTORS:
 
 ## Annotations & labels
 
-Annotations namespaced under `epok.getbetter.ro` can be used to tell EPOK about 
+Annotations namespaced under `epok.getbetter.ro` can be used to tell Epok about 
 Kubernetes services and nodes it should (or shouldn't) take into account.
 
 Services can be annotated with:
 
 * `epok.getbetter.ro/externalports` - use this on a `NodePort`-type service
-to tell EPOK which ports it should forward. It expects a comma-separated list
+to tell Epok which ports it should forward. It expects a comma-separated list
 of port mappings. For example: `epok.getbetter.ro/externalports: 22:2022,25:2025`.
 Single port mappings are supported - just omit the comma. UDP is supported by 
 suffixing the mapping with `:udp` - for example: `epok.getbetter.ro/externalports: 53:8053:udp`
-* `epok.getbetter.ro/internal` - tells EPOK that this is an "internal" service.
+* `epok.getbetter.ro/internal` - tells Epok that this is an "internal" service.
 If an external interface has been specified (via the `--external-interface` option)
-EPOK will _not_ allow the service to be reachable from it. Useful for when 
+Epok will _not_ allow the service to be reachable from it. Useful for when 
 you're connecting to the host machine via a VPN tunnel and want certain services
 to be reachable only through the tunnel.
 * `epok.getbetter.ro/allow-range` - CIDR range of IPv4 addresses allowed to talk 
@@ -84,16 +80,16 @@ Nodes can be excluded from the ruleset by:
 
 ## SSH Executor
 
-When deployed inside the cluster, EPOK needs a way to communicate to the host
+When deployed inside the cluster, Epok needs a way to communicate to the host
 machine in order to update the `iptables` ruleset. The simplest solution I 
 could conjure was to simply set up a dedicated user account on the host
 that can only manipulate `iptables` rules and use SSH to connect.
 
 <p align="center">
-  <img src="docs/epok_ssh.svg" alt="Using EPOK with the SSH executor" width="400" />
+  <img src="docs/epok_ssh.svg" alt="Using Epok with the SSH executor" width="400" />
 </p>
 
-To set up the host EPOK user:
+Here's one way to do it:
 
 ```shell
 export EPOK_USER=epok
@@ -115,7 +111,7 @@ sudo mv /home/$EPOK_USER/.ssh/id_rsa /path/to/private.key
 
 NOTE: [`sealedsecrets`](https://github.com/bitnami-labs/sealed-secrets) is a good solution for storing the private key inside the cluster.
 
-To test epok connectivity:
+To test connectivity:
 
 ```shell
 epok -i eth0 ssh --host $EPOK_USER@host_machine --key /path/to/private.key
@@ -123,26 +119,28 @@ epok -i eth0 ssh --host $EPOK_USER@host_machine --key /path/to/private.key
 
 ## Deployment example
 
-Set up some configuration values:
+Requirements:
+
+* [`just`](https://github.com/casey/just)
+* `envsubst` - usually found within the `gettext` package of your distro
+
+Create a build + deploy configuration file:
 
 ```shell
 cat > epok.config <<EOF
-# Where should we pull base images from?
-DOCKER_HUB=docker.io
-
-# Where should we push the docker image? Should be reachable from the cluster.
+# Where should we push the container image? Should be reachable from the cluster.
 EPOK_IMAGE="my.docker.registry/epok:latest"
 
-# What interfaces should epok forward packets from?
+# What interfaces should we forward packets from?
 EPOK_INTERFACES="eth0"
 
-# What user@host should epok use to contact the host machine?
-EPOK_SSH_HOST=user@10.0.0.1
+# What SSH user@host should we use to connect to the host machine?
+EPOK_SSH_HOST=epok@10.0.0.1
 
-# On what port is sshd running on the host?
+# On what port is sshd listening on the host machine?
 EPOK_SSH_PORT=22222
 
-# What key should we use to authenticate?
+# What private key should we use to authenticate?
 EPOK_SSH_KEY=/path/to/private.key
 
 # What namespace shall we deploy to?
@@ -152,14 +150,15 @@ export EPOK_IMAGE EPOK_INTERFACE EPOK_SSH_HOST EPOK_SSH_PORT EPOK_SSH_KEY EPOK_N
 EOF
 ```
 
-Dockerize epok:
+Build Epok & the container image and push it to the registry:
 
 ```shell
 source epok.config
 just docker-release docker push
 ```
 
-Create the namespace, secret and deploy using the supplied [example manifests](examples/k8s-manifests.yaml):
+Create the namespace and secret, then deploy using the supplied
+[example manifests](docs/deployment-example.yaml):
 
 ```shell
 source epok.config
@@ -168,5 +167,5 @@ kubectl create secret -n $EPOK_NS generic epok-ssh \
   --from-file=id_rsa=$EPOK_SSH_KEY \
   --from-literal=ssh_host=$EPOK_SSH_HOST \
   --from-literal=ssh_port=$EPOK_SSH_PORT
-envsubst < examples/k8s-manifests.yaml | kubectl apply -f -
+envsubst < docs/deployment-example.yaml | kubectl apply -f -
 ```

@@ -1,5 +1,3 @@
-use std::any::TypeId;
-
 use super::ExternalPorts;
 use crate::ResourceLike;
 
@@ -14,9 +12,6 @@ pub struct Service {
 
 impl ResourceLike for Service {
     fn id(&self) -> String { self.fqn() }
-
-    fn type_id(&self) -> TypeId { TypeId::of::<Service>() }
-
     fn is_active(&self) -> bool { self.has_external_ports() }
 }
 

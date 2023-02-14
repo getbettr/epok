@@ -29,7 +29,12 @@ pub enum Resource {
 #[enum_dispatch(Resource)]
 pub trait ResourceLike {
     fn id(&self) -> String;
-    fn type_id(&self) -> TypeId;
+    fn type_id(&self) -> TypeId
+    where
+        Self: 'static,
+    {
+        TypeId::of::<Self>()
+    }
     fn is_active(&self) -> bool;
 }
 

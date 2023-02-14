@@ -1,5 +1,3 @@
-use std::any::TypeId;
-
 use crate::ResourceLike;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -18,8 +16,5 @@ impl Interface {
 
 impl ResourceLike for Interface {
     fn id(&self) -> String { self.name.to_owned() }
-
-    fn type_id(&self) -> TypeId { TypeId::of::<Interface>() }
-
     fn is_active(&self) -> bool { true }
 }

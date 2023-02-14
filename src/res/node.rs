@@ -1,5 +1,3 @@
-use std::any::TypeId;
-
 use anyhow::{anyhow, Context};
 use k8s_openapi::api::core::v1::NodeStatus;
 
@@ -14,9 +12,6 @@ pub struct Node {
 
 impl ResourceLike for Node {
     fn id(&self) -> String { self.name.to_owned() }
-
-    fn type_id(&self) -> TypeId { TypeId::of::<Node>() }
-
     fn is_active(&self) -> bool { self.is_active }
 }
 

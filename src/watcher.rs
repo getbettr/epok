@@ -6,8 +6,11 @@ use std::{
 use backoff::{backoff::Backoff, ExponentialBackoff};
 use k8s_openapi::serde::de::DeserializeOwned;
 use kube::{
-    api::ListParams,
-    runtime::{utils::StreamBackoff, watcher, watcher::Error},
+    runtime::{
+        utils::StreamBackoff,
+        watcher,
+        watcher::{Config, Error},
+    },
     Api, Client, Resource as CoreResource,
 };
 use tokio_stream::{Stream, StreamExt};
@@ -22,7 +25,7 @@ where
     <Resource as TryFrom<T>>::Error: Display,
 {
     StreamBackoff::new(
-        watcher(Api::<T>::all(client), ListParams::default()),
+        watcher(Api::<T>::all(client), Config::default()),
         backoff(),
     )
     .map(|ev| ev.map(Ops::from))

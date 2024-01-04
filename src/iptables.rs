@@ -120,7 +120,7 @@ fn iptables_statement(
         ),
     };
     let balance = match rule.node_index {
-        i if i == 0 => "".to_owned(),
+        0 => "".to_owned(),
         i => format!("-m statistic --mode nth --every {} --packet 0", i + 1),
     };
     let comment = format!(

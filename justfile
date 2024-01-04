@@ -65,7 +65,7 @@ docker-release *DOCKER_ARGS="":
 
 # Build the docker image
 docker:
-  docker build -t `just _image` \
+  docker build --no-cache -t `just _image` \
     --build-arg HUB={{HUB}} \
     --build-arg CACHE_BUST={{CACHE_BUST}} \
     -f docker/Dockerfile .

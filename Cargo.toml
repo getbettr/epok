@@ -22,8 +22,8 @@ cmd_lib = "1.9"
 enum_dispatch = "0.3.12"
 futures = "0.3"
 itertools = "0.12"
-k8s-openapi = { version = "0.18", features = ["schemars", "v1_24"] }
-kube = { version = "0.83", default-features = false, features = ["client", "openssl-tls", "runtime"] }
+k8s-openapi = { version = "0.20", features = ["schemars", "v1_24"] }
+kube = { version = "0.87", default-features = false, features = ["client", "openssl-tls", "runtime"] }
 lazy_static = "1.4"
 pin-project = "1"
 sha256 = "1"

@@ -48,6 +48,7 @@ steps:
     <<: *rust
     commands:
       - while ! curl -s --unix-socket /var/run/docker.sock http://localhost/; do sleep 1; done
+      - docker system prune -f
       - just pull || (/with-ci.sh just release && just docker && just push)
       - just push-latest
 

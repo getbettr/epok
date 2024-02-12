@@ -27,7 +27,7 @@ kube = { version = "0.87", default-features = false, features = ["client", "open
 lazy_static = "1.4"
 pin-project = "1"
 sha256 = "1"
-thiserror = "1.0.56"
+thiserror = "1.0.57"
 tokio = { version = "1", features = ["full", "test-util"] }
 tokio-stream = "0.1"
 tracing = { version = "0.1", default-features = false, features = ["std"] }

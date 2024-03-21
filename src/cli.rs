@@ -27,6 +27,11 @@ pub struct Opts {
     #[clap(long, env = "EPOK_EXTERNAL_INTERFACE")]
     pub external_interface: Option<String>,
 
+    /// Internal services will be reachable through these IPs
+    /// Format is: x.x.x.x/mask
+    #[clap(long, env = "EPOK_EXTRA_INTERNAL_IPS")]
+    pub extra_internal_ips: Option<String>,
+
     #[clap(flatten)]
     pub batch_opts: BatchOpts,
 

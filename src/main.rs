@@ -10,7 +10,7 @@ async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     debug!("parsed options: {opts:?}");
 
-    let local_ip = opts
+    let mut local_ip = opts
         .external_interface
         .as_ref()
         .map(|iface| get_ip(iface, &opts.executor));
@@ -33,6 +33,10 @@ async fn main() -> anyhow::Result<()> {
 
     if local_ip.is_some() {
         interfaces.push(Interface::new("lo"));
+    }
+
+    if let Some(extra_ips) = opts.extra_internal_ips {
+        local_ip = local_ip.map(|ip| format!("{ip},{extra_ips}"))
     }
 
     let mut state = State::default().with(interfaces);

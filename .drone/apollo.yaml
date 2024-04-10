@@ -4,7 +4,7 @@ type: kubernetes
 name: apollo
 
 __dind_orb: &dind
-  image: hub.getbetter.ro/orbs/dind:green
+  image: hub.getbetter.ro/orbs/dind:blue
   pull: always
   volumes:
     - name: dockersock
@@ -58,4 +58,4 @@ trigger:
 
 volumes:
   - name: dockersock
-    temp: {}
+    temp: { }

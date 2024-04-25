@@ -16,7 +16,7 @@ __dind_orb: &dind
       path: /var/run
 
 __rust_env: &rust_env
-  SCCACHE_ENDPOINT: "10.40.0.165:5099"
+  SCCACHE_ENDPOINT: "10.40.0.213:23122"
   SCCACHE_CREDS:
     from_secret: sccache-creds
 

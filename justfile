@@ -60,7 +60,6 @@ docker-release *DOCKER_ARGS="":
   docker build -t `just _image`-release \
     --build-arg HUB={{HUB}} \
     {{DOCKER_ARGS}} \
-    -v $(pwd)/target:/epok/target \
     -f docker/Dockerfile-release .
 
 # Build the docker image

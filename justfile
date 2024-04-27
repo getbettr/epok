@@ -1,7 +1,7 @@
 #!/usr/bin/env just --justfile
 
 # just manual: https://github.com/casey/just/#readme
-REGISTRY := "hub.getbetter.ro"
+REGISTRY := `echo ${REGISTRY:-"hub.getbetter.ro"}`
 PROJECT := "epok"
 HUB := `echo ${DOCKER_HUB:-"hub-cache.getbetter.ro"}`
 CACHE_BUST := `date +%Y-%m-%d:%H:%M:%S`

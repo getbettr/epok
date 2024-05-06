@@ -1,0 +1,67 @@
+---
+kind: pipeline
+type: kubernetes
+name: worker18
+
+tolerations:
+  - key: node-role.kubernetes.io/ci
+    operator: Exists
+    effect: NoSchedule
+
+__dind_orb: &dind
+  image: hub.getbetter.ro/orbs/dind:blue
+  pull: always
+  volumes:
+    - name: dockersock
+      path: /var/run
+
+__rust_env: &rust_env
+  SCCACHE_ENDPOINT: "10.40.0.1:9000"
+  SCCACHE_CREDS:
+    from_secret: sccache-creds
+
+_rust_dev_env: &rust_dev_env
+  <<: *rust_env
+  CARGO_PROFILE_RELEASE_LTO: "false"
+
+__rust_orb: &rust
+  image: hub.getbetter.ro/orbs/rust:blue
+  pull: always
+  volumes:
+    - name: dockersock
+      path: /var/run
+  environment:
+    <<: *rust_env
+
+steps:
+  - name: just-ci
+    <<: *rust
+    commands:
+      - /with-ci.sh just ci
+    environment:
+      <<: *rust_dev_env
+  - name: docker-daemon
+    when:
+      branch:
+        - main
+    <<: *dind
+    privileged: true
+    detach: true
+  - name: just-dockerize
+    when:
+      branch:
+        - main
+    <<: *rust
+    commands:
+      - while ! curl -s --unix-socket /var/run/docker.sock http://localhost/; do sleep 1; done
+      - just pull || (/with-ci.sh just release && just docker && just push)
+      - just push-latest
+
+trigger:
+  branch:
+    exclude:
+      - renovate/*
+
+volumes:
+  - name: dockersock
+    temp: { }

@@ -55,12 +55,18 @@ pull:
 
 # Release using docker
 docker-release *DOCKER_ARGS="":
-  # '-v $CARGO_HOME:/tmp/.cargo_home' to reuse the local cargo cache
-  mkdir -p target
-  docker build -t `just _image`-release \
+  #!/usr/bin/env bash
+  mkdir -p target/release
+  image="$(just _image)-release"
+  docker build -t $image \
     --build-arg HUB={{HUB}} \
     {{DOCKER_ARGS}} \
     -f docker/Dockerfile-release .
+  container=$(docker create $image)
+  docker cp $container:/epok/target/release/epok target/release/
+  docker cp $container:/epok/target/release/epok-clean target/release/
+  docker rm -f $container
+
 
 # Build the docker image
 docker:

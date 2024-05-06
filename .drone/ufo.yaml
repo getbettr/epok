@@ -3,29 +3,25 @@ kind: pipeline
 type: kubernetes
 name: ufo
 
-tolerations:
-  - key: node-role.kubernetes.io/ci
-    operator: Exists
-    effect: NoSchedule
-
 __dind_orb: &dind
-  image: hub.getbetter.ro/orbs/dind:blue
+  image: registry-np.storage-system.svc.k8s.local/orbs/dind:blue
   pull: always
   volumes:
     - name: dockersock
       path: /var/run
 
 __rust_env: &rust_env
-  SCCACHE_ENDPOINT: "10.40.0.1:9000"
   SCCACHE_CREDS:
     from_secret: sccache-creds
+  DOCKER_HUB: hub-cache.storage-system.svc.k8s.local
+  REGISTRY: registry-np.storage-system.svc.k8s.local
 
 _rust_dev_env: &rust_dev_env
   <<: *rust_env
   CARGO_PROFILE_RELEASE_LTO: "false"
 
 __rust_orb: &rust
-  image: hub.getbetter.ro/orbs/rust:blue
+  image: registry-np.storage-system.svc.k8s.local/orbs/rust:blue
   pull: always
   volumes:
     - name: dockersock

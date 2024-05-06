@@ -21,10 +21,11 @@ impl State {
         (added, removed)
     }
 
-    pub fn with<R: 'static>(self, other: impl IntoIterator<Item = R>) -> Self
+    pub fn with<R>(self, other: impl IntoIterator<Item = R>) -> Self
     where
         Resource: From<R>,
         R: ResourceLike,
+        R: 'static,
     {
         let r_type = TypeId::of::<R>();
         let resources = self

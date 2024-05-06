@@ -14,6 +14,7 @@ pub trait Backend {
     fn delete_rules<P>(&mut self, pred: P) -> Result<()>
     where
         P: FnMut(&&str) -> bool;
+    fn config_hash(&self) -> String;
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -25,34 +26,35 @@ pub struct Rule {
     pub node_index: usize,
 }
 
-impl Rule {
-    pub fn rule_id(&self) -> String {
-        let mut rule_id = digest(format!(
-            "{}::{}::{}::{}::{}::{}",
-            self.service_id(),
-            self.node.addr,
-            self.num_nodes,
-            self.node_index,
-            self.interface.name,
-            self.interface.is_external,
-        ));
-        rule_id.truncate(16);
-        rule_id
-    }
-
-    pub fn service_id(&self) -> String {
-        let mut svc_hash = digest(self.service.fqn());
-        svc_hash.truncate(16);
-        let port_hash = &self.service.external_ports.specs.iter().join("::");
-        let mut service_id = digest(format!(
-            "{svc_hash}{port_hash}{}{}",
-            self.service.is_internal,
-            self.service.allow_range.to_owned().unwrap_or_else(|| "".into())
-        ));
-        service_id.truncate(16);
-        service_id
-    }
+pub fn rule_id(rule: &Rule, config_hash: &str) -> String {
+    let mut rule_id = digest(format!(
+        "{}::{}::{}::{}::{}::{}::{}",
+        service_id(rule),
+        rule.node.addr,
+        rule.num_nodes,
+        rule.node_index,
+        rule.interface.name,
+        rule.interface.is_external,
+        config_hash
+    ));
+    rule_id.truncate(16);
+    rule_id
 }
+
+pub fn service_id(rule: &Rule) -> String {
+    let mut svc_hash = digest(rule.service.fqn());
+    svc_hash.truncate(16);
+    let port_hash = &rule.service.external_ports.specs.iter().join("::");
+    let mut service_id = digest(format!(
+        "{svc_hash}{port_hash}{}{}",
+        rule.service.is_internal,
+        rule.service.allow_range.to_owned().unwrap_or_else(|| "".into())
+    ));
+    service_id.truncate(16);
+    service_id
+}
+
+impl Rule {}
 
 pub struct Operator<B> {
     backend: RefCell<B>,
@@ -80,7 +82,7 @@ impl<B: Backend> Operator<B> {
             let removed_service_ids =
                 make_rules(&state.clone().with(removed.get::<Service>()))
                     .iter()
-                    .map(Rule::service_id)
+                    .map(service_id)
                     .collect::<Vec<_>>();
 
             backend
@@ -99,8 +101,13 @@ impl<B: Backend> Operator<B> {
         // Case 2: node or interface added or removed => full cycle
         let new_rules = make_rules(state);
 
-        let new_rule_ids =
-            new_rules.iter().map(Rule::rule_id).collect::<Vec<_>>();
+        let new_rule_ids = new_rules
+            .iter()
+            .map(|r| rule_id(r, &backend.config_hash()))
+            .collect::<Vec<_>>();
+
+        info!("new rule ids: {new_rule_ids:?}");
+        info!("config hash: {}", backend.config_hash());
 
         backend
             .apply_rules(new_rules)
@@ -182,11 +189,17 @@ mod tests {
         where
             P: FnMut(&&str) -> bool,
         {
+            let config_hash = self.config_hash().to_owned();
             self.rules.retain(|r| {
-                !pred(&format!("{} {}", r.rule_id(), r.service_id()).as_str())
+                !pred(
+                    &format!("{} {}", rule_id(r, &config_hash), service_id(r))
+                        .as_str(),
+                )
             });
             Ok(())
         }
+
+        fn config_hash(&self) -> String { "<default>".to_owned() }
     }
 
     #[test]

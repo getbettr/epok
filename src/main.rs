@@ -35,7 +35,7 @@ async fn main() -> anyhow::Result<()> {
         interfaces.push(Interface::new("lo"));
     }
 
-    if let Some(extra_ips) = opts.extra_internal_ips {
+    if let Some(extra_ips) = opts.extra_internal_ips.to_owned() {
         local_ip = local_ip.map(|ip| format!("{ip},{extra_ips}"))
     }
 
@@ -45,6 +45,7 @@ async fn main() -> anyhow::Result<()> {
         opts.executor,
         opts.batch_opts,
         local_ip,
+        opts.extra_internal_ips,
     ));
 
     let kube_client = Client::try_default().await?;
@@ -57,12 +58,11 @@ async fn main() -> anyhow::Result<()> {
 
     while let Some(op_batch) = debounced.next().await {
         let prev_state = state.clone();
-        let ops = op_batch.into_iter().flat_map(|ops| match ops {
-            Ok(inner) => inner,
-            Err(e) => {
+        let ops = op_batch.into_iter().flat_map(|ops| {
+            ops.unwrap_or_else(|e| {
                 warn!("{e}");
                 Ops(Vec::new())
-            }
+            })
         });
         apply(ops, &mut state);
 

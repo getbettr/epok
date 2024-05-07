@@ -4,10 +4,8 @@ use itertools::Itertools;
 use sha256::digest;
 
 use crate::{
-    operator::{rule_id, service_id},
-    res::Proto,
-    Backend, BatchOpts, Error, Executor, PortSpec, Result, Rule, RULE_MARKER,
-    SERVICE_MARKER,
+    res::Proto, Backend, BatchOpts, Error, Executor, PortSpec, Result, Rule,
+    RULE_MARKER,
 };
 
 pub struct IptablesBackend {
@@ -37,22 +35,15 @@ impl Backend for IptablesBackend {
                     .filter(|rule| {
                         !self
                             .rule_state
-                            .contains(&rule_id(rule, &self.config_hash()))
+                            .contains(&rule.rule_id(&self.config_hash()))
                     })
-                    .sorted_unstable_by_key(|r| Reverse(r.node_index))
-                    .flat_map(|rule| {
-                        rule.service
-                            .external_ports
-                            .specs
-                            .iter()
-                            .map(|port_spec| {
-                                self.iptables_statement(
-                                    port_spec,
-                                    &rule,
-                                    &self.local_ip,
-                                )
-                            })
-                            .collect::<Vec<_>>()
+                    .sorted_unstable_by_key(|r| Reverse(r.nth))
+                    .map(|rule| {
+                        self.iptables_statement(
+                            &rule.port_spec,
+                            &rule,
+                            &self.local_ip,
+                        )
                     })
                     .map(|stmt| format!("sudo iptables -w -t nat -A {stmt}")),
                 &self.batch_opts,
@@ -76,7 +67,7 @@ impl Backend for IptablesBackend {
     fn config_hash(&self) -> String {
         let mut config_hash =
             digest(format!("{:?}::{:?}", self.local_ip, self.extra_ips));
-        config_hash.truncate(32);
+        config_hash.truncate(16);
         config_hash
     }
 }
@@ -104,12 +95,12 @@ impl IptablesBackend {
         local_ip: &Option<String>,
     ) -> String {
         let (host_port, node_port) =
-            (port_spec.host_port, port_spec.node_port);
+            (port_spec.host_port, port_spec.dest_port);
         let d_ip = match local_ip {
             None => "".to_owned(),
             Some(ip) => format!("-d {ip}"),
         };
-        let s_range = match &rule.service.allow_range {
+        let s_range = match &rule.allow_range {
             None => "".to_owned(),
             Some(s) => format!("-s {s}"),
         };
@@ -136,22 +127,20 @@ impl IptablesBackend {
                 ),
             ),
         };
-        let balance = match rule.node_index {
+        let balance = match rule.nth {
             0 => "".to_owned(),
             i => {
                 format!("-m statistic --mode nth --every {} --packet 0", i + 1)
             }
         };
         let comment = format!(
-            "-m comment --comment 'service: {}; node: {}; {RULE_MARKER}: {}; {SERVICE_MARKER}: {}'",
-            rule.service.fqn(),
-            rule.node.name,
-            rule_id(rule, &self.config_hash()),
-            service_id(rule),
+            "-m comment --comment '{}; {RULE_MARKER}: {}'",
+            rule.comment.as_ref().unwrap_or(&"".to_owned()),
+            rule.rule_id(&self.config_hash()),
         );
         let jump = format!(
             "-j DNAT --to-destination {node_addr}:{node_port}",
-            node_addr = rule.node.addr,
+            node_addr = rule.dest_addr,
         );
         format!("{chain} {selector} {balance} {comment} {jump}")
     }

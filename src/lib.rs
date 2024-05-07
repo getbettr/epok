@@ -48,7 +48,6 @@ pub const OP_DEBOUNCE_TIMEOUT: Duration = Duration::from_millis(100);
 pub const OP_CHANNEL_SIZE: usize = 64;
 pub const OP_DEBOUNCE_CAPACITY: usize = 128;
 pub const RULE_MARKER: &str = "epok_rule_id";
-pub const SERVICE_MARKER: &str = "epok_service_id";
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 

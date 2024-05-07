@@ -1,9 +1,12 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, collections::HashMap};
 
-use itertools::{iproduct, Itertools};
+use itertools::iproduct;
 use sha256::digest;
 
-use crate::{logging::*, Error, Interface, Node, Result, Service, State};
+use crate::{
+    logging::*, Error, ExternalPorts, Interface, Node, Pod, PortSpec, Proto,
+    ResourceLike, Result, Service, State,
+};
 
 pub trait Backend {
     fn read_state(&mut self);
@@ -19,42 +22,21 @@ pub trait Backend {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Rule {
-    pub node: Node,
-    pub service: Service,
+    pub dest_addr: String,
+    pub allow_range: Option<String>,
+    pub port_spec: PortSpec,
     pub interface: Interface,
-    pub num_nodes: usize,
-    pub node_index: usize,
+    pub nth: usize,
+    pub out_of: usize,
+    pub comment: Option<String>,
+    pub rule_hash: String,
 }
 
-pub fn rule_id(rule: &Rule, config_hash: &str) -> String {
-    let mut rule_id = digest(format!(
-        "{}::{}::{}::{}::{}::{}::{}",
-        service_id(rule),
-        rule.node.addr,
-        rule.num_nodes,
-        rule.node_index,
-        rule.interface.name,
-        rule.interface.is_external,
-        config_hash
-    ));
-    rule_id.truncate(16);
-    rule_id
+impl Rule {
+    pub fn rule_id(&self, config_hash: &str) -> String {
+        format!("{config_hash}::{}", self.rule_hash)
+    }
 }
-
-pub fn service_id(rule: &Rule) -> String {
-    let mut svc_hash = digest(rule.service.fqn());
-    svc_hash.truncate(16);
-    let port_hash = &rule.service.external_ports.specs.iter().join("::");
-    let mut service_id = digest(format!(
-        "{svc_hash}{port_hash}{}{}",
-        rule.service.is_internal,
-        rule.service.allow_range.to_owned().unwrap_or_else(|| "".into())
-    ));
-    service_id.truncate(16);
-    service_id
-}
-
-impl Rule {}
 
 pub struct Operator<B> {
     backend: RefCell<B>,
@@ -75,15 +57,41 @@ impl<B: Backend> Operator<B> {
         let mut backend = self.backend.borrow_mut();
         backend.read_state();
 
-        // Case 1: same node set + same interfaces
-        if state.get::<Node>() == prev_state.get::<Node>()
-            && state.get::<Interface>() == prev_state.get::<Interface>()
+        // Case 1: nuclear option - node or interface changed => full cycle
+        if state.get::<Node>() != prev_state.get::<Node>()
+            || state.get::<Interface>() != prev_state.get::<Interface>()
         {
-            let removed_service_ids =
-                make_rules(&state.clone().with(removed.get::<Service>()))
-                    .iter()
-                    .map(service_id)
-                    .collect::<Vec<_>>();
+            let mut new_rules = make_rules(state);
+            new_rules.extend(make_pod_rules(state));
+
+            let new_rule_ids = new_rules
+                .iter()
+                .map(|r| r.rule_id(&backend.config_hash()))
+                .collect::<Vec<_>>();
+
+            info!("new rule ids: {new_rule_ids:?}");
+            info!("config hash: {}", backend.config_hash());
+
+            backend
+                .apply_rules(new_rules)
+                .map_err(|e| Error::OperatorError(Box::new(e)))?;
+
+            return backend
+                .delete_rules(|&rule| {
+                    new_rule_ids
+                        .iter()
+                        .all(|new_rule_id| !rule.contains(new_rule_id))
+                })
+                .map_err(|e| Error::OperatorError(Box::new(e)));
+        }
+
+        // Case 2: service changes
+        if state.get::<Service>() != prev_state.get::<Service>() {
+            let removed_service_ids = removed
+                .get::<Service>()
+                .iter()
+                .map(|s| s.service_hash())
+                .collect::<Vec<_>>();
 
             backend
                 .apply_rules(make_rules(
@@ -91,35 +99,41 @@ impl<B: Backend> Operator<B> {
                 ))
                 .map_err(|e| Error::OperatorError(Box::new(e)))?;
 
-            return backend.delete_rules(|&rule| {
-                removed_service_ids
-                    .iter()
-                    .any(|service_id| rule.contains(service_id))
-            });
+            backend
+                .delete_rules(|&rule| {
+                    removed_service_ids
+                        .iter()
+                        .any(|service_id| rule.contains(service_id))
+                })
+                .map_err(|e| Error::OperatorError(Box::new(e)))?;
         }
 
-        // Case 2: node or interface added or removed => full cycle
-        let new_rules = make_rules(state);
+        // Case 3: pod change => semi-nuclear because one pod might have
+        // different indexes in different (source_port, protocol) collections,
+        // so it's safer to re-create all rules
+        if state.get::<Pod>() != prev_state.get::<Pod>() {
+            let new_rules = make_pod_rules(state);
 
-        let new_rule_ids = new_rules
-            .iter()
-            .map(|r| rule_id(r, &backend.config_hash()))
-            .collect::<Vec<_>>();
+            let new_rule_ids = new_rules
+                .iter()
+                .map(|r| r.rule_id(&backend.config_hash()))
+                .collect::<Vec<_>>();
 
-        info!("new rule ids: {new_rule_ids:?}");
-        info!("config hash: {}", backend.config_hash());
+            backend
+                .apply_rules(new_rules)
+                .map_err(|e| Error::OperatorError(Box::new(e)))?;
 
-        backend
-            .apply_rules(new_rules)
-            .map_err(|e| Error::OperatorError(Box::new(e)))?;
+            backend
+                .delete_rules(|&rule| {
+                    rule.contains("pod::")
+                        && new_rule_ids
+                            .iter()
+                            .all(|new_rule_id| !rule.contains(new_rule_id))
+                })
+                .map_err(|e| Error::OperatorError(Box::new(e)))?;
+        }
 
-        backend
-            .delete_rules(|&rule| {
-                new_rule_ids
-                    .iter()
-                    .all(|new_rule_id| !rule.contains(new_rule_id))
-            })
-            .map_err(|e| Error::OperatorError(Box::new(e)))
+        Ok(())
     }
 
     pub fn cleanup(&self) -> Result<()> {
@@ -133,25 +147,98 @@ impl<B: Backend> Operator<B> {
 
 fn make_rules(state: &State) -> Vec<Rule> {
     let num_nodes = state.get::<Node>().len();
+    let mut rules = Vec::new();
+
     iproduct!(
         state.get::<Node>().iter().enumerate(),
         &state.get::<Service>(),
         &state.get::<Interface>()
     )
-    .map(|((node_index, node), service, interface)| {
+    .for_each(|((node_index, node), service, interface)| {
         if interface.is_external && service.is_internal {
-            return None;
+            return;
         }
-        Some(Rule {
-            node: node.to_owned(),
-            service: service.to_owned(),
-            interface: interface.to_owned(),
-            num_nodes,
-            node_index,
+
+        for spec in &service.external_ports.specs {
+            let dest_addr = node.addr.to_owned();
+            let nth = node_index;
+            let out_of = num_nodes;
+
+            let mut rule_hash = digest(format!(
+                "{}::{}::{}::{}::{}",
+                dest_addr, nth, out_of, interface.name, interface.is_external,
+            ));
+            rule_hash.truncate(16);
+            let rule_hash =
+                format!("service::{}::{}", service.service_hash(), rule_hash);
+
+            rules.push(Rule {
+                dest_addr,
+                allow_range: service.allow_range.to_owned(),
+                port_spec: spec.to_owned(),
+                interface: interface.to_owned(),
+                nth,
+                out_of,
+                comment: Some(format!(
+                    "service: {}; node: {}",
+                    service.fqn(),
+                    node.name
+                )),
+                rule_hash,
+            })
+        }
+    });
+    rules
+}
+
+fn make_pod_rules(state: &State) -> Vec<Rule> {
+    let mut pod_map = HashMap::<(u16, Proto), Vec<Pod>>::new();
+
+    state.get::<Pod>().iter().filter(|p| p.is_active()).for_each(|p| {
+        p.external_ports.specs.iter().for_each(|s| {
+            let mut new_p = p.clone();
+            new_p.external_ports = ExternalPorts { specs: vec![s.clone()] };
+            pod_map.entry((s.host_port, s.proto)).or_default().push(new_p)
         })
-    })
-    .flatten()
-    .collect()
+    });
+
+    let mut rules = Vec::new();
+
+    for interface in state.get::<Interface>() {
+        pod_map.values().for_each(|pods| {
+            let out_of = pods.len();
+            pods.iter().enumerate().for_each(|(nth, pod)| {
+                let dest_addr = pod.addr.to_owned();
+
+                let mut rule_hash = digest(format!(
+                    "{}::{}::{}::{}::{}",
+                    dest_addr,
+                    nth,
+                    out_of,
+                    interface.name,
+                    interface.is_external,
+                ));
+                rule_hash.truncate(16);
+                let rule_hash =
+                    format!("pod::{}::{}", pod.pod_hash(), rule_hash);
+
+                rules.push(Rule {
+                    dest_addr,
+                    allow_range: None,
+                    port_spec: pod.external_ports.specs[0].to_owned(),
+                    interface: interface.to_owned(),
+                    nth,
+                    out_of,
+                    comment: Some(format!(
+                        "pod: {}; namespace: {}",
+                        pod.name, pod.namespace
+                    )),
+                    rule_hash,
+                })
+            })
+        });
+    }
+    rules
 }
 
 #[cfg(test)]
@@ -192,8 +279,8 @@ mod tests {
             let config_hash = self.config_hash().to_owned();
             self.rules.retain(|r| {
                 !pred(
-                    &format!("{} {}", rule_id(r, &config_hash), service_id(r))
-                        .as_str(),
+                    &r.rule_id(&config_hash).as_str(), // &format!("{} {}", r.rule_id(&config_hash), r.service_id())
+                                                       //     .as_str(),
                 )
             });
             Ok(())
@@ -226,24 +313,18 @@ mod tests {
 
         let rules = operator.get_rules();
         assert_eq!(rules.len(), 1);
-        assert_eq!(
-            rules[0].service.external_ports,
-            single_port_spec(123, 456)
-        );
+        assert_eq!(rules[0].port_spec, single_port_spec(123, 456));
 
         let state2 = state1.clone().with([single_port_service(1234, 456)]);
         operator.reconcile(&state2, &state1).unwrap();
 
-        let rules = operator.get_rules();
+        let rules = dbg!(operator.get_rules());
         assert_eq!(rules.len(), 1);
-        assert_eq!(
-            rules[0].service.external_ports,
-            single_port_spec(1234, 456)
-        );
+        assert_eq!(rules[0].port_spec, single_port_spec(1234, 456));
     }
 
     #[test]
-    fn it_replaces_svc_on_interal_change() {
+    fn it_replaces_svc_on_internal_change() {
         let backend = TestBackend::default();
         let operator = Operator::new(backend);
 
@@ -256,10 +337,7 @@ mod tests {
         // A normal service should get a rule even for external interfaces
         let rules = operator.get_rules();
         assert_eq!(rules.len(), 1);
-        assert_eq!(
-            rules[0].service.external_ports,
-            single_port_spec(123, 456)
-        );
+        assert_eq!(rules[0].port_spec, single_port_spec(123, 456));
 
         // However once the service goes "internal" the rule should be gone
         let state2 = state1.clone().with([svc.internal()]);
@@ -273,10 +351,7 @@ mod tests {
         operator.reconcile(&state3, &state2).unwrap();
         let rules = operator.get_rules();
         assert_eq!(rules.len(), 1);
-        assert_eq!(
-            rules[0].service.external_ports,
-            single_port_spec(123, 456)
-        );
+        assert_eq!(rules[0].port_spec, single_port_spec(123, 456));
     }
 
     #[test]
@@ -330,7 +405,7 @@ mod tests {
         assert_eq!(rules.len(), 2);
         assert!(rules
             .iter()
-            .all(|x| x.service.external_ports == single_port_spec(789, 654)));
+            .all(|x| x.port_spec == single_port_spec(789, 654)));
     }
 
     #[test]
@@ -343,10 +418,7 @@ mod tests {
 
         let rules = operator.get_rules();
         assert_eq!(rules.len(), 1);
-        assert_eq!(
-            rules[0].service.external_ports,
-            single_port_spec(123, 456)
-        );
+        assert_eq!(rules[0].port_spec, single_port_spec(123, 456));
 
         let state1 = state0.clone().with(Vec::<Node>::new());
         operator.reconcile(&state1, &state0).unwrap();
@@ -372,15 +444,9 @@ mod tests {
         operator.reconcile(&state1, &state0).unwrap();
 
         let rules = operator.get_rules();
-        assert_eq!(
-            rules[0].service.external_ports,
-            ExternalPorts {
-                specs: vec![
-                    PortSpec::new_tcp(123, 456),
-                    PortSpec::new_tcp(321, 654),
-                ],
-            }
-        );
+        assert_eq!(rules.len(), 2);
+        assert_eq!(rules[0].port_spec, PortSpec::new_tcp(123, 456),);
+        assert_eq!(rules[1].port_spec, PortSpec::new_tcp(321, 654),);
     }
 
     #[test]
@@ -393,15 +459,12 @@ mod tests {
 
         let rules = operator.get_rules();
         assert_eq!(rules.len(), 1);
-        assert_eq!(
-            rules[0].service.external_ports,
-            single_port_spec(123, 456)
-        );
+        assert_eq!(rules[0].port_spec, single_port_spec(123, 456));
 
         let state1 = state0.clone().with([service_with_ep(ExternalPorts {
             specs: vec![PortSpec {
                 host_port: 123,
-                node_port: 456,
+                dest_port: 456,
                 proto: Proto::Udp,
             }],
         })]);
@@ -412,14 +475,8 @@ mod tests {
         assert_eq!(rules.len(), 1);
 
         assert_eq!(
-            rules[0].service.external_ports,
-            ExternalPorts {
-                specs: vec![PortSpec {
-                    host_port: 123,
-                    node_port: 456,
-                    proto: Proto::Udp,
-                }],
-            }
+            rules[0].port_spec,
+            PortSpec { host_port: 123, dest_port: 456, proto: Proto::Udp },
         );
     }
 
@@ -431,12 +488,16 @@ mod tests {
         }])
     }
 
-    fn single_port_spec(host_port: u16, node_port: u16) -> ExternalPorts {
-        ExternalPorts { specs: vec![PortSpec::new_tcp(host_port, node_port)] }
+    fn single_external_port(host_port: u16, node_port: u16) -> ExternalPorts {
+        ExternalPorts { specs: vec![single_port_spec(host_port, node_port)] }
+    }
+
+    fn single_port_spec(host_port: u16, dest_port: u16) -> PortSpec {
+        PortSpec::new_tcp(host_port, dest_port)
     }
 
     fn single_port_service(host_port: u16, node_port: u16) -> Service {
-        service_with_ep(single_port_spec(host_port, node_port))
+        service_with_ep(single_external_port(host_port, node_port))
     }
 
     fn service_with_ep(external_ports: ExternalPorts) -> Service {

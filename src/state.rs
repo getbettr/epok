@@ -204,6 +204,11 @@ mod tests {
         assert!(state.get::<Service>().contains(&applied));
     }
 
+    // TODO
+    // ----
+    // failing test that removing a svc named 'foo' also
+    // removes a node named 'foo' + preferably fixing it
+
     #[test]
     fn with_diff() {
         let svc1 = mock_svc("foo", "bar", 333, 444);

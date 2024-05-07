@@ -5,12 +5,11 @@ use std::{
 };
 
 use anyhow::anyhow;
-use kube::ResourceExt;
 
-use crate::{CoreService, ANNOTATION};
+use crate::ANNOTATION;
 use super::Error;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Proto {
     Tcp,
     Udp,
@@ -19,13 +18,13 @@ pub enum Proto {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PortSpec {
     pub host_port: u16,
-    pub node_port: u16,
+    pub dest_port: u16,
     pub proto: Proto,
 }
 
 impl PortSpec {
-    pub fn new_tcp(host_port: u16, node_port: u16) -> Self {
-        Self { host_port, node_port, proto: Proto::Tcp }
+    pub fn new_tcp(host_port: u16, dest_port: u16) -> Self {
+        Self { host_port, dest_port, proto: Proto::Tcp }
     }
 }
 
@@ -33,7 +32,7 @@ impl Display for PortSpec {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!(
             "{}::{}::{:?}",
-            self.host_port, self.node_port, self.proto
+            self.host_port, self.dest_port, self.proto
         ))
     }
 }
@@ -52,11 +51,6 @@ impl TryFrom<&BTreeMap<String, String>> for ExternalPorts {
             anno[ANNOTATION].parse().map_err(|e| Error::AnnotationParseError {
                 inner: e,
                 annotation,
-                service_id: format!(
-                    "{}/{}",
-                    cs.namespace().unwrap_or_default(),
-                    cs.name_any()
-                ),
             })
         } else {
             Ok(Self::default())
@@ -75,7 +69,7 @@ impl FromStr for ExternalPorts {
                 match parts.len() {
                     pl @ 2..=3 => Ok(PortSpec {
                         host_port: parts[0].parse()?,
-                        node_port: parts[1].parse()?,
+                        dest_port: parts[1].parse()?,
                         proto: {
                             if pl == 3 && parts[2] == "udp" {
                                 Proto::Udp

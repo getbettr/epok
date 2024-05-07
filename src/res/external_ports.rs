@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     fmt::{Display, Formatter},
     str::FromStr,
 };
@@ -42,14 +43,13 @@ pub struct ExternalPorts {
     pub specs: Vec<PortSpec>,
 }
 
-impl TryFrom<CoreService> for ExternalPorts {
+impl TryFrom<&BTreeMap<String, String>> for ExternalPorts {
     type Error = Error;
 
-    fn try_from(cs: CoreService) -> Result<Self, Self::Error> {
-        let anno = cs.annotations();
+    fn try_from(anno: &BTreeMap<String, String>) -> Result<Self, Self::Error> {
         if anno.contains_key(ANNOTATION) {
             let annotation = anno[ANNOTATION].to_owned();
-            anno[ANNOTATION].parse().map_err(|e| Error::ServiceParseError {
+            anno[ANNOTATION].parse().map_err(|e| Error::AnnotationParseError {
                 inner: e,
                 annotation,
                 service_id: format!(

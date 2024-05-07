@@ -58,6 +58,12 @@ pub enum Error {
         inner: anyhow::Error,
         node_id: String,
     },
+    #[error("invalid annotation (error: {inner}, annotation: {annotation})")]
+    AnnotationParseError {
+        #[source]
+        inner: anyhow::Error,
+        annotation: String,
+    },
     #[error("skipping pod (reason: {inner}, pod_id: {pod_id})")]
     SkipPod {
         #[source]
@@ -71,9 +77,9 @@ impl TryFrom<CoreService> for Resource {
 
     fn try_from(cs: CoreService) -> Result<Self, Self::Error> {
         Ok(Service {
-            external_ports: cs.clone().try_into()?,
             name: cs.name_any(),
             namespace: cs.namespace().unwrap_or_default(),
+            external_ports: cs.annotations().try_into()?,
             is_internal: cs.annotations().contains_key(INTERNAL_ANNOTATION),
             allow_range: cs
                 .annotations()

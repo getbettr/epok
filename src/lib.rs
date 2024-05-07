@@ -28,12 +28,13 @@ pub use cli::{BatchOpts, Executor, Opts, SshHost};
 pub use debounce::Debounce;
 pub use iptables::IptablesBackend;
 pub use k8s_openapi::api::core::v1::{
-    Node as CoreNode, Service as CoreService,
+    Node as CoreNode, Pod as CorePod, Service as CoreService,
 };
 pub use logging::*;
 pub use operator::{Backend, Operator, Rule};
 pub use res::{
-    ExternalPorts, Interface, Node, PortSpec, Resource, ResourceLike, Service,
+    ExternalPorts, Interface, Node, Pod, PortSpec, Proto, Resource,
+    ResourceLike, Service,
 };
 pub use state::{apply, Op, Ops, State};
 pub use watcher::watch;

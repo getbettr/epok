@@ -49,12 +49,13 @@ async fn main() -> anyhow::Result<()> {
     ));
 
     let kube_client = Client::try_default().await?;
-    let (services, nodes) = (
+    let (services, nodes, pods) = (
         watch::<CoreService>(kube_client.clone()),
-        watch::<CoreNode>(kube_client),
+        watch::<CoreNode>(kube_client.clone()),
+        watch::<CorePod>(kube_client),
     );
 
-    let mut debounced = Debounce::boxed(services.merge(nodes));
+    let mut debounced = Debounce::boxed(services.merge(nodes).merge(pods));
 
     while let Some(op_batch) = debounced.next().await {
         let prev_state = state.clone();

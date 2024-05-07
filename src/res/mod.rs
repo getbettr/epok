@@ -119,6 +119,7 @@ impl TryFrom<CorePod> for Resource {
             name: cp.name_any(),
             namespace: cp.namespace().unwrap_or_default(),
             external_ports: cp.annotations().try_into()?,
+            is_internal: cp.annotations().contains_key(INTERNAL_ANNOTATION),
             addr,
             is_ready: is_active,
         }

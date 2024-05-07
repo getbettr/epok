@@ -208,6 +208,9 @@ fn make_pod_rules(state: &State) -> Vec<Rule> {
         pod_map.values().for_each(|pods| {
             let out_of = pods.len();
             pods.iter().enumerate().for_each(|(nth, pod)| {
+                if interface.is_external && pod.is_internal {
+                    return;
+                }
                 let dest_addr = pod.addr.to_owned();
 
                 let mut rule_hash = digest(format!(

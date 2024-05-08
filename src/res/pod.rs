@@ -12,6 +12,7 @@ pub struct Pod {
     pub addr: String,
     pub external_ports: ExternalPorts,
     pub is_internal: bool,
+    pub is_external: bool,
     pub is_ready: bool,
 }
 

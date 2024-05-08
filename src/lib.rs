@@ -41,6 +41,7 @@ pub use watcher::watch;
 
 pub const ANNOTATION: &str = "epok.getbetter.ro/externalports";
 pub const INTERNAL_ANNOTATION: &str = "epok.getbetter.ro/internal";
+pub const EXTERNAL_ANNOTATION: &str = "epok.getbetter.ro/external";
 pub const ALLOW_RANGE_ANNOTATION: &str = "epok.getbetter.ro/allow-range";
 pub const NODE_EXCLUDE_ANNOTATION: &str = "epok.getbetter.ro/exclude";
 pub const NODE_EXCLUDE_LABEL: &str = "epok_exclude";

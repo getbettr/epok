@@ -17,7 +17,8 @@ pub use pod::*;
 
 use crate::{
     CoreNode, CorePod, CoreService, ALLOW_RANGE_ANNOTATION,
-    INTERNAL_ANNOTATION, NODE_EXCLUDE_ANNOTATION, NODE_EXCLUDE_LABEL,
+    EXTERNAL_ANNOTATION, INTERNAL_ANNOTATION, NODE_EXCLUDE_ANNOTATION,
+    NODE_EXCLUDE_LABEL,
 };
 
 #[enum_dispatch]
@@ -120,6 +121,7 @@ impl TryFrom<CorePod> for Resource {
             namespace: cp.namespace().unwrap_or_default(),
             external_ports: cp.annotations().try_into()?,
             is_internal: cp.annotations().contains_key(INTERNAL_ANNOTATION),
+            is_external: cp.annotations().contains_key(EXTERNAL_ANNOTATION),
             addr,
             is_ready: is_active,
         }

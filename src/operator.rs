@@ -211,6 +211,9 @@ fn make_pod_rules(state: &State) -> Vec<Rule> {
                 if interface.is_external && pod.is_internal {
                     return;
                 }
+                if !interface.is_external && pod.is_external {
+                    return;
+                }
                 let dest_addr = pod.addr.to_owned();
 
                 let mut rule_hash = digest(format!(

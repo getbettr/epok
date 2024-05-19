@@ -38,6 +38,8 @@ steps:
     when:
       branch:
         - main
+      event:
+        - push
     <<: *dind
     privileged: true
     detach: true
@@ -45,6 +47,8 @@ steps:
     when:
       branch:
         - main
+      event:
+        - push
     <<: *rust
     commands:
       - while ! curl -s --unix-socket /var/run/docker.sock http://localhost/; do sleep 1; done

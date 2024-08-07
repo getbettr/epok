@@ -102,7 +102,7 @@ where
 {
     fn from(event: Event<C>) -> Self {
         let ops = match event {
-            Event::Applied(obj) => Resource::try_from(obj)
+            Event::Apply(obj) | Event::InitApply(obj) => Resource::try_from(obj)
                 .map(|res| {
                     let mut ret = vec![Op::ResourceRemove(res.id())];
                     if res.is_active() {
@@ -114,24 +114,13 @@ where
                     warn!("could not extract resource: {}", e);
                     e
                 }),
-            Event::Restarted(objs) => Ok(objs
-                .into_iter()
-                .filter_map(|o| match Resource::try_from(o) {
-                    Ok(r) => Some(r),
-                    Err(e) => {
-                        warn!("could not extract resource: {}", e);
-                        None
-                    }
-                })
-                .filter(Resource::is_active)
-                .map(Op::ResourceAdd)
-                .collect()),
-            Event::Deleted(obj) => Resource::try_from(obj)
+            Event::Delete(obj) => Resource::try_from(obj)
                 .map(|res| vec![Op::ResourceRemove(res.id())])
                 .map_err(|e| {
                     warn!("could not extract resource: {}", e);
                     e
                 }),
+            _ => Ok(Vec::new())
         };
         Ops(ops.unwrap_or_default())
     }
@@ -164,7 +153,7 @@ mod tests {
         let svc = mock_svc("foo", "bar", 123, 456);
         let mut state = State::default();
 
-        let ops = Ops::from(Event::Applied(svc.clone()));
+        let ops = Ops::from(Event::Apply(svc.clone()));
         apply(ops, &mut state);
 
         assert!(!state.is_empty());
@@ -176,9 +165,9 @@ mod tests {
         let svc = mock_svc("foo", "bar", 123, 456);
         let mut state = State::default();
 
-        let ops = Ops::from(Event::Applied(svc.clone()))
+        let ops = Ops::from(Event::Apply(svc.clone()))
             .into_iter()
-            .chain(Ops::from(Event::Deleted(svc)));
+            .chain(Ops::from(Event::Delete(svc)));
         apply(ops, &mut state);
 
         assert!(state.is_empty());
@@ -194,9 +183,10 @@ mod tests {
         let applied = mock_svc("foo", "bar", 333, 444);
         let mut state = State::default();
 
-        let ops = Ops::from(Event::Restarted(svcs.clone()))
+        let ops = Ops::from(Event::Apply(svcs[0].clone()))
             .into_iter()
-            .chain(Ops::from(Event::Applied(applied.clone())));
+            .chain(Ops::from(Event::Apply(svcs[1].clone())))
+            .chain(Ops::from(Event::Apply(applied.clone())));
         apply(ops, &mut state);
 
         assert!(!state.is_empty());

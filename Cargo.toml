@@ -28,7 +28,7 @@ lazy_static = "1.5.0"
 pin-project = "1.1.5"
 sha256 = "1.5.0"
 thiserror = "1.0.63"
-tokio = { version = "1.38.1", features = ["full", "test-util"] }
+tokio = { version = "1.39.2", features = ["full", "test-util"] }
 tokio-stream = "0.1.15"
 tracing = { version = "0.1.40", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }

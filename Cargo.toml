@@ -29,7 +29,7 @@ pin-project = "1.1.5"
 sha256 = "1.5.0"
 thiserror = "1.0.63"
 tokio = { version = "1.40.0", features = ["full", "test-util"] }
-tokio-stream = "0.1.15"
+tokio-stream = "0.1.16"
 tracing = { version = "0.1.40", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 

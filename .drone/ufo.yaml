@@ -4,7 +4,7 @@ type: kubernetes
 name: ufo
 
 __dind_orb: &dind
-  image: registry-np.storage-system.svc.k8s.local/orbs/dind:green
+  image: registry-np.storage-system.svc.k8s.local/orbs/dind:blue
   pull: always
   volumes:
     - name: dockersock
@@ -21,7 +21,7 @@ _rust_dev_env: &rust_dev_env
   CARGO_PROFILE_RELEASE_LTO: "false"
 
 __rust_orb: &rust
-  image: registry-np.storage-system.svc.k8s.local/orbs/rust:green
+  image: registry-np.storage-system.svc.k8s.local/orbs/rust:blue
   pull: always
   volumes:
     - name: dockersock

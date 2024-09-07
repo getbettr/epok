@@ -15,7 +15,7 @@ name = "epok-clean"
 path = "src/bin/cleanup.rs"
 
 [dependencies]
-anyhow = "1.0.86"
+anyhow = "1.0.87"
 backoff = "0.4.0"
 clap = { version = "4.5.17", features = ["cargo", "derive", "env"] }
 cmd_lib = "1.9.4"

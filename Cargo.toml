@@ -37,6 +37,6 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 quickcheck = { version = "1.0.3", default-features = false }
 
 [profile.release]
-debug = 1
-incremental = true
-lto = "off"
+lto = false
+opt-level = "s"
+strip = true

@@ -16,7 +16,7 @@ ci:
   just udeps
 
 # Release the kraken
-release:
+build:
   cargo build --release --locked
 
 # Run clippy on the sources

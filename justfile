@@ -5,6 +5,7 @@ REGISTRY := `echo ${REGISTRY:-"hub.getbetter.ro"}`
 PROJECT := "epok"
 HUB := `echo ${DOCKER_HUB:-"hub-cache.getbetter.ro"}`
 CACHE_BUST := `date +%Y-%m-%d:%H:%M:%S`
+DEFAULT_RELEASE := "patch"
 
 _default:
   @just --list
@@ -15,9 +16,21 @@ ci:
   just test
   just udeps
 
-# Release the kraken
+# Build the kraken
 build:
   cargo build --release --locked
+
+# Release the kraken
+release type=DEFAULT_RELEASE:
+  #!/usr/bin/env bash
+  cargo release version {{type}} -x --no-confirm
+  cargo release commit -x --no-confirm
+  cargo release -x --no-confirm || {
+    echo -e "Release failed, removing latest tag and rewinding to HEAD~1..."
+    git tag --delete $(git tag -l | sort -r | head -n 1)
+    git reset --hard HEAD~1
+    exit 1
+  }
 
 # Run clippy on the sources
 check:

@@ -35,30 +35,49 @@ steps:
     environment:
       <<: *rust_dev_env
   - name: docker-daemon
-    when:
-      branch:
-        - main
-      event:
-        - push
     <<: *dind
+    when:
+      ref:
+        - refs/tags/*
+        - refs/heads/ci
     privileged: true
     detach: true
   - name: just-dockerize
-    when:
-      branch:
-        - main
-      event:
-        - push
     <<: *rust
+    when:
+      ref:
+        - refs/tags/*
+        - refs/heads/ci
     commands:
       - while ! curl -s --unix-socket /var/run/docker.sock http://localhost/; do sleep 1; done
       - just pull || (/with-ci.sh just build && just docker && just push)
+  - name: just-push-latest
+    <<: *rust
+    when:
+      ref:
+        - refs/tags/*
+    commands:
       - just push-latest
+  - name: release
+    <<: *dind
+    when:
+      ref:
+        - refs/tags/*
+    environment:
+      TEA_TOKEN:
+        from_secret: tea-token
+    commands:
+      - tea login add --name getbetter --url gitea.getbetter.ro --token "$TEA_TOKEN"
+      - export TAG_NAME=$(echo $CI_COMMIT_REF | cut -d"/" -f3-)
+      - git fetch --tags -q
+      - tea releases create --tag $TAG_NAME --title $TAG_NAME --note "$(git-cliff --latest --strip all)"
 
 trigger:
-  branch:
-    exclude:
-      - renovate/*
+  ref:
+    - refs/tags/*
+    - refs/heads/main
+    - refs/heads/ci
+    - refs/heads/renovate*
 
 volumes:
   - name: dockersock

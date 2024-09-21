@@ -77,7 +77,7 @@ trigger:
     - refs/tags/*
     - refs/heads/main
     - refs/heads/ci
-    - refs/heads/renovate*
+    - refs/heads/renovate/*
 
 volumes:
   - name: dockersock

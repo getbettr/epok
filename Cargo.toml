@@ -23,7 +23,6 @@ enum_dispatch = "0.3.13"
 futures = "0.3.30"
 itertools = "0.13.0"
 k8s-openapi = { version = "0.23.0", features = ["schemars", "v1_26"] }
-kube = { version = "0.95.0", default-features = false, features = ["client", "openssl-tls", "runtime"] }
 lazy_static = "1.4.0"
 pin-project = "1.1.5"
 sha256 = "1.5.0"
@@ -33,10 +32,28 @@ tokio-stream = "0.1.15"
 tracing = { version = "0.1.40", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
+# easier to use rust-tls for musl builds
+[target.'cfg(any(target_env = "musl", target_arch = "powerpc64", target_arch = "s390x"))'.dependencies.kube]
+version = "0.95.0"
+default-features = false
+features = ["client", "rustls-tls", "runtime"]
+
+[target.'cfg(not(any(target_env = "musl", target_arch = "powerpc64", target_arch = "s390x")))'.dependencies.kube]
+version = "0.95.0"
+default-features = false
+features = ["client", "openssl-tls", "runtime"]
+
 [dev-dependencies]
 quickcheck = { version = "1.0.3", default-features = false }
 
 [profile.release]
-debug = 1
-incremental = true
-lto = "off"
+opt-level = 3
+lto = false
+strip = true
+
+[profile.smol]
+inherits = "release"
+opt-level = "z"
+lto = true
+panic = "abort"
+codegen-units = 1

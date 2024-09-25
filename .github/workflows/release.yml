@@ -32,15 +32,14 @@ jobs:
             echo "version does not match Cargo.toml" >&2
             exit 1
           fi
-      - name: Prepare cliff config
-        run: |
-          sed -i 's#$REPO#${{ github.server_url }}/${{ github.repository }}#g' cliff-gh.toml
       - name: Generate a changelog
         uses: orhun/git-cliff-action@v4
         id: git-cliff
         with:
-          config: cliff-gh.toml
+          config: cliff.toml
           args: --latest --strip all
+        env:
+          REPO_PREFIX: ${{ github.server_url }}/${{ github.repository }}/
       - name: Create GitHub release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

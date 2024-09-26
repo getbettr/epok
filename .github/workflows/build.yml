@@ -62,6 +62,7 @@ jobs:
           path: /home/runner/.cache/sccache
           key: ${{ matrix.target }}-sccache-${{ hashFiles('.cargo/config.toml') }}
           restore-keys: |
+            ${{ matrix.target }}-sccache-${{ hashFiles('.cargo/config.toml') }}
             ${{ matrix.target }}-sccache-
 
       - name: Fix cache permissions

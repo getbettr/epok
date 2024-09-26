@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ci
+      - "dev/build-yml"
       - "!main"
 
 permissions:
@@ -125,7 +126,7 @@ jobs:
           echo "ASSET_SUM=$ARCHIVE.tar.gz.sha256" >> $GITHUB_ENV
 
       - name: Upload release archive
-        if: github.ref == 'refs/heads/ci'
+        if: "github.ref == 'refs/heads/ci' && !contains(github.event.head_commit.message, '[cron]')"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -134,7 +135,7 @@ jobs:
           gh release upload "$version" ${{ env.ASSET }} ${{ env.ASSET_SUM }}
 
   promote-release:
-    if: github.ref == 'refs/heads/ci'
+    if: "github.ref == 'refs/heads/ci' && !contains(github.event.head_commit.message, '[cron]')"
     name: promote-release
     needs: ["build-binaries", "get-version"]
     runs-on: ubuntu-latest

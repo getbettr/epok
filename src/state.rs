@@ -70,7 +70,7 @@ where
 #[derive(Debug)]
 pub enum Op {
     ResourceAdd(Resource),
-    ResourceRemove(String),
+    ResourceRemove(Resource),
 }
 
 pub struct Ops(pub Vec<Op>);
@@ -88,8 +88,13 @@ impl Op {
             Op::ResourceAdd(res) => {
                 state.resources.insert(res.to_owned());
             }
-            Op::ResourceRemove(res_id) => {
-                state.resources.retain(|res| res.id() != *res_id);
+            Op::ResourceRemove(res) => {
+                state.resources.retain(|ours| {
+                    eprintln!("ours = {:?}", ours);
+                    !(ours.id() == res.id()
+                        && ResourceLike::type_id(ours)
+                            == ResourceLike::type_id(res))
+                });
             }
         }
     }
@@ -102,25 +107,27 @@ where
 {
     fn from(event: Event<C>) -> Self {
         let ops = match event {
-            Event::Apply(obj) | Event::InitApply(obj) => Resource::try_from(obj)
-                .map(|res| {
-                    let mut ret = vec![Op::ResourceRemove(res.id())];
-                    if res.is_active() {
-                        ret.push(Op::ResourceAdd(res))
-                    }
-                    ret
-                })
-                .map_err(|e| {
-                    warn!("could not extract resource: {}", e);
-                    e
-                }),
+            Event::Apply(obj) | Event::InitApply(obj) => {
+                Resource::try_from(obj)
+                    .map(|res| {
+                        let mut ret = vec![Op::ResourceRemove(res.clone())];
+                        if res.is_active() {
+                            ret.push(Op::ResourceAdd(res))
+                        }
+                        ret
+                    })
+                    .map_err(|e| {
+                        warn!("could not extract resource: {}", e);
+                        e
+                    })
+            }
             Event::Delete(obj) => Resource::try_from(obj)
-                .map(|res| vec![Op::ResourceRemove(res.id())])
+                .map(|res| vec![Op::ResourceRemove(res)])
                 .map_err(|e| {
                     warn!("could not extract resource: {}", e);
                     e
                 }),
-            _ => Ok(Vec::new())
+            _ => Ok(Vec::new()),
         };
         Ops(ops.unwrap_or_default())
     }
@@ -129,7 +136,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ExternalPorts, Node, PortSpec, Service};
+    use crate::{ExternalPorts, Node, Op::ResourceRemove, PortSpec, Service};
 
     fn mock_svc(
         name: &str,
@@ -146,6 +153,10 @@ mod tests {
             is_internal: false,
             allow_range: None,
         }
+    }
+
+    fn mock_node(name: &str, addr: &str, is_active: bool) -> Node {
+        Node { name: name.into(), addr: addr.into(), is_active }
     }
 
     #[test]
@@ -194,21 +205,25 @@ mod tests {
         assert!(state.get::<Service>().contains(&applied));
     }
 
-    // TODO
-    // ----
-    // failing test that removing a svc named 'foo' also
-    // removes a node named 'foo' + preferably fixing it
+    #[test]
+    fn remove_doesnt_affect_resources_of_different_type() {
+        let svc1 = mock_svc("foo", "bar", 333, 444);
+        let node1 = mock_node("bar/foo", "bar", true);
+        let mut state =
+            State::default().with([node1.clone()]).with([svc1.clone()]);
+
+        let op = ResourceRemove(svc1.clone().into());
+        op.apply(&mut state);
+
+        assert_eq!(state, State::default().with([node1]));
+    }
 
     #[test]
     fn with_diff() {
         let svc1 = mock_svc("foo", "bar", 333, 444);
         let svc2 = mock_svc("foo", "bar", 123, 321);
 
-        let node1 = Node {
-            name: "node0".into(),
-            addr: "1.2.3.4".into(),
-            is_active: true,
-        };
+        let node1 = mock_node("node0", "1.2.3.4", true);
 
         let prev = State::default().with([node1.clone()]).with([svc1.clone()]);
 

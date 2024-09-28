@@ -283,12 +283,7 @@ mod tests {
             P: FnMut(&&str) -> bool,
         {
             let config_hash = self.config_hash().to_owned();
-            self.rules.retain(|r| {
-                !pred(
-                    &r.rule_id(&config_hash).as_str(), // &format!("{} {}", r.rule_id(&config_hash), r.service_id())
-                                                       //     .as_str(),
-                )
-            });
+            self.rules.retain(|r| !pred(&r.rule_id(&config_hash).as_str()));
             Ok(())
         }
 

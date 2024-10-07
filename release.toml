@@ -1,3 +1,6 @@
 sign-commit = true
+sign-tag = true
 push = true
+push-remote = "origin"
 publish = false
+

@@ -34,12 +34,12 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 # easier to use rust-tls for musl builds
 [target.'cfg(any(target_env = "musl", target_arch = "powerpc64", target_arch = "s390x"))'.dependencies.kube]
-version = "0.95.0"
+version = "0.96.0"
 default-features = false
 features = ["client", "rustls-tls", "runtime"]
 
 [target.'cfg(not(any(target_env = "musl", target_arch = "powerpc64", target_arch = "s390x")))'.dependencies.kube]
-version = "0.95.0"
+version = "0.96.0"
 default-features = false
 features = ["client", "openssl-tls", "runtime"]
 

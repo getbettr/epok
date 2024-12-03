@@ -16,7 +16,7 @@ where
     }
 }
 
-impl<'a, I> Iterator for Batch<'a, I>
+impl<I> Iterator for Batch<'_, I>
 where
     I: Iterator,
     I::Item: AsRef<str> + Default,

@@ -48,7 +48,7 @@ udeps:
 _tag:
   #!/usr/bin/env bash
   git ls-files -s \
-    docker src build.rs rust-toolchain.toml \
+    docker src build.rs \
     Cargo.toml Cargo.lock \
     | git hash-object --stdin \
     | cut -c-20

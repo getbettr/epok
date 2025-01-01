@@ -2,7 +2,7 @@
 name = "epok"
 description = "External port operator for Kubernetes"
 authors = ["Rareș <rares@getbetter.ro>"]
-version = "0.10.5"
+version = "0.10.6"
 edition = "2021"
 publish = ["getbetter"]
 

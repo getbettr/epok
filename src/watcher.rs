@@ -3,13 +3,13 @@ use std::{
     time::Duration,
 };
 
-use backoff::{backoff::Backoff, ExponentialBackoff};
+use backon::ExponentialBuilder;
 use k8s_openapi::serde::de::DeserializeOwned;
 use kube::{
     runtime::{
         utils::StreamBackoff,
         watcher,
-        watcher::{Config, Error},
+        watcher::{Config, Error, ExponentialBackoff},
     },
     Api, Client, Resource as CoreResource,
 };
@@ -31,13 +31,12 @@ where
     .map(|ev| ev.map(Ops::from))
 }
 
-fn backoff() -> impl Backoff + Send + Sync {
-    ExponentialBackoff {
-        initial_interval: Duration::from_millis(800),
-        max_interval: Duration::from_secs(30),
-        randomization_factor: 1.0,
-        multiplier: 2.0,
-        max_elapsed_time: Some(Duration::from_secs(60)),
-        ..ExponentialBackoff::default()
-    }
+fn backoff() -> ExponentialBackoff {
+    ExponentialBuilder::new()
+        .with_min_delay(Duration::from_millis(800))
+        .with_max_delay(Duration::from_secs(30))
+        .with_factor(1.0)
+        .with_total_delay(Some(Duration::from_secs(60)))
+        .without_max_times()
+        .into()
 }

@@ -90,7 +90,7 @@ impl Op {
             }
             Op::ResourceRemove(res) => {
                 state.resources.retain(|ours| {
-                    eprintln!("ours = {:?}", ours);
+                    eprintln!("ours = {ours:?}");
                     !(ours.id() == res.id()
                         && ResourceLike::type_id(ours)
                             == ResourceLike::type_id(res))

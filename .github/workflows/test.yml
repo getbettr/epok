@@ -46,8 +46,8 @@ jobs:
           echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
           echo "SCCACHE_DIR=/home/runner/.cache/sccache" >> $GITHUB_ENV
         env:
-          CARGO_UDEPS_VERSION: "v0.1.50"
-          SCCACHE_VERSION: "v0.8.1"
+          CARGO_UDEPS_VERSION: "v0.1.57"
+          SCCACHE_VERSION: "v0.10.0"
       - name: Run the CI tests
         run: |
           just ci

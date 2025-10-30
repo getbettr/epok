@@ -1,6 +1,6 @@
 ARG HUB=docker.io
 
-FROM ${HUB}/library/debian:bullseye-slim
+FROM ${HUB}/library/debian:bookworm-slim
 RUN apt-get update && apt-get install -y openssh-client libssl-dev && rm -rf /var/lib/apt/lists/*
 
 ARG CACHE_BUST=no

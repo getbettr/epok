@@ -18,7 +18,7 @@ path = "src/bin/cleanup.rs"
 anyhow = "1.0.83"
 backon = "1.5.1"
 clap = { version = "4.5.4", features = ["cargo", "derive", "env"] }
-cmd_lib = "1.9.3"
+cmd_lib = "2.0.0"
 enum_dispatch = "0.3.13"
 futures = "0.3.30"
 itertools = "0.14.0"

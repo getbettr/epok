@@ -25,7 +25,7 @@ _rust_dev_env: &rust_dev_env
   CARGO_PROFILE_RELEASE_LTO: "false"
 
 __rust_orb: &rust
-  image: hub.getbetter.ro/orbs/rust:green
+  image: hub.getbetter.ro/orbs/rust:blue
   pull: always
   volumes:
     - name: dockersock
